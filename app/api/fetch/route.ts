@@ -1,0 +1,69 @@
+import { NextResponse } from "next/server";
+import TurndownService from "turndown";
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const url: string | undefined = body?.url;
+    if (!url || typeof url !== "string") {
+      return NextResponse.json({ error: "无效的URL" }, { status: 400 });
+    }
+
+    let html = "";
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        throw new Error(`请求失败: ${res.status}`);
+      }
+      html = await res.text();
+    } catch (e) {
+      return NextResponse.json(
+        { error: "该网站不支持，请手动复制粘贴文本" },
+        { status: 502 }
+      );
+    }
+
+    const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+    const title = (titleMatch?.[1] || url).trim();
+    let domain = "";
+    try {
+      domain = new URL(url).hostname;
+    } catch {
+      domain = "未知来源";
+    }
+    
+    // Use Turndown to convert HTML to Markdown
+    const turndownService = new TurndownService({
+      headingStyle: 'atx',
+      codeBlockStyle: 'fenced'
+    });
+
+    // Remove scripts, styles, and meta tags that might interfere
+    const cleanHtml = html
+      .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
+      .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gim, "")
+      .replace(/<noscript\b[^>]*>([\s\S]*?)<\/noscript>/gim, "")
+      .replace(/<header\b[^>]*>([\s\S]*?)<\/header>/gim, "") // Optional: remove header
+      .replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/gim, "") // Optional: remove footer
+      .replace(/<nav\b[^>]*>([\s\S]*?)<\/nav>/gim, "");      // Optional: remove nav
+
+    const markdown = turndownService.turndown(cleanHtml);
+
+    const id = `url-${Date.now()}`;
+    // Return as 'markdown' type content
+    return NextResponse.json({ id, title, domain, url, content: markdown, type: 'markdown' });
+  } catch (err) {
+    return NextResponse.json(
+      { error: "服务异常" },
+      { status: 500 }
+    );
+  }
+}
+
