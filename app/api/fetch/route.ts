@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import TurndownService from "turndown";
+import { gfm } from "turndown-plugin-gfm";
 
 export async function POST(req: Request) {
   try {
@@ -30,6 +31,17 @@ export async function POST(req: Request) {
       );
     }
 
+    // Resolve relative URLs
+    const baseUrl = new URL(url);
+    html = html.replace(/(src|href)=["']([^"']+)["']/gi, (match, attr, path) => {
+      try {
+        const absolute = new URL(path, baseUrl).href;
+        return `${attr}="${absolute}"`;
+      } catch {
+        return match;
+      }
+    });
+
     const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
     const title = (titleMatch?.[1] || url).trim();
     let domain = "";
@@ -42,17 +54,23 @@ export async function POST(req: Request) {
     // Use Turndown to convert HTML to Markdown
     const turndownService = new TurndownService({
       headingStyle: 'atx',
-      codeBlockStyle: 'fenced'
+      codeBlockStyle: 'fenced',
+      hr: '---',
+      bulletListMarker: '-',
     });
+    
+    // Use GFM plugin
+    turndownService.use(gfm);
 
     // Remove scripts, styles, and meta tags that might interfere
     const cleanHtml = html
       .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
       .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gim, "")
       .replace(/<noscript\b[^>]*>([\s\S]*?)<\/noscript>/gim, "")
-      .replace(/<header\b[^>]*>([\s\S]*?)<\/header>/gim, "") // Optional: remove header
-      .replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/gim, "") // Optional: remove footer
-      .replace(/<nav\b[^>]*>([\s\S]*?)<\/nav>/gim, "");      // Optional: remove nav
+      .replace(/<header\b[^>]*>([\s\S]*?)<\/header>/gim, "") 
+      .replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/gim, "") 
+      .replace(/<nav\b[^>]*>([\s\S]*?)<\/nav>/gim, "")
+      .replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "");
 
     const markdown = turndownService.turndown(cleanHtml);
 

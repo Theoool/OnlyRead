@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Anti-AI Reader",
+  "version": "1.0.0",
+  "description": "Force linear reading on any webpage.",
+  "action": {
+    "default_title": "Enter Focus Mode"
+  },
+  "background": {
+    "service_worker": "service-worker-loader.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "assets/index.tsx-D11gVnp9.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ],
+      "css": [
+        "assets/index-BEHUn5zE.css"
+      ]
+    }
+  ],
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "web_accessible_resources": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "resources": [
+        "assets/index.tsx-D11gVnp9.js"
+      ],
+      "use_dynamic_url": false
+    }
+  ]
+}

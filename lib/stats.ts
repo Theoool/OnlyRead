@@ -14,7 +14,7 @@ export function getReadingStats(): ReadingSession[] {
     if (!raw) return [];
     const arr = JSON.parse(raw) as ReadingSession[];
     return Array.isArray(arr) ? arr : [];
-  } catch {
+  } catch { 
     return [];
   }
 }

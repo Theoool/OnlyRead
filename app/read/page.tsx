@@ -1,72 +1,49 @@
 "use client";
-import { useEffect, useState, useRef, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense, Children } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Article, getArticle, updateArticle } from "@/lib/articles";
+import { Article, getArticle, updateArticle, ConceptCardData } from "@/lib/articles";
+import { splitMarkdownBlocks, splitSentences } from "@/lib/text-processing";
 import { recordSession } from "@/lib/stats";
 import { motion, AnimatePresence } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 import { Check, Lock, X, ArrowLeft, ChevronRight, BookOpen } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
+import remarkGfm from "remark-gfm";
 import "highlight.js/styles/github-dark.css";
+import { ConceptCard } from "@/app/components/ConceptCard";
+import { SelectionToolbar } from "@/app/components/SelectionToolbar";
+import { ConceptHud } from "@/app/components/ConceptHud";
 
-function splitMarkdownBlocks(text: string): string[] {
-  if (!text) return [];
-  const lines = text.split(/\r?\n/);
-  const blocks: string[] = [];
-  let currentBlock: string[] = [];
-  let inCodeBlock = false;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    // Check for code block fence
-    if (trimmed.startsWith('```')) {
-      if (inCodeBlock) {
-        // End of code block
-        currentBlock.push(line);
-        blocks.push(currentBlock.join('\n'));
-        currentBlock = [];
-        inCodeBlock = false;
-      } else {
-        // Start of code block
-        // If we have pending text, push it first
-        if (currentBlock.length > 0) {
-           blocks.push(currentBlock.join('\n'));
-           currentBlock = [];
-        }
-        inCodeBlock = true;
-        currentBlock.push(line);
-      }
-    } else {
-      if (inCodeBlock) {
-        currentBlock.push(line);
-      } else {
-        if (trimmed === '') {
-          // Empty line outside code block -> end of paragraph
-          if (currentBlock.length > 0) {
-            blocks.push(currentBlock.join('\n'));
-            currentBlock = [];
-          }
-        } else {
-          currentBlock.push(line);
-        }
-      }
-    }
-  }
-  if (currentBlock.length > 0) {
-    blocks.push(currentBlock.join('\n'));
-  }
+function HighlightText({ text, cards, onTermClick }: { text: string, cards: ConceptCardData[], onTermClick: (e: React.MouseEvent, term: string) => void }) {
+  if (!cards?.length) return <>{text}</>;
   
-  return blocks.filter(b => b.trim().length > 0);
-}
-
-function splitSentences(text: string): string[] {
-  if (!text) return [];
-  // Split by . ! ? \n but keep delimiters
-  const replaced = text
-    .replace(/([。！？\n])/g, "$1|")
-    .replace(/(\. )/g, ".|");
-  return replaced.split("|").filter((s) => s.trim().length > 0);
+  const terms = cards.map(c => c.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const pattern = new RegExp(`(${terms.join('|')})`, 'g');
+  const parts = text.split(pattern);
+  
+  return (
+    <>
+      {parts.map((part, i) => {
+        const isMatch = cards.some(c => c.term === part);
+        if (isMatch) {
+          return (
+            <span 
+              key={i}
+              onClick={(e) => {
+                  e.stopPropagation();
+                  onTermClick(e, part);
+              }}
+              className="border-b-[1.5px] border-purple-400/50 bg-purple-100/50 dark:bg-purple-900/30 cursor-pointer hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors rounded-sm px-0.5"
+            >
+              {part}
+            </span>
+          );
+        }
+        return part;
+      })}
+    </>
+  );
 }
 
 function ReadContent() {
@@ -77,7 +54,69 @@ function ReadContent() {
   const [sentences, setSentences] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   
-  // Debounce & Cooldown
+  // Concept Card State
+  const [activeCard, setActiveCard] = useState<{ x: number; y: number; term: string; savedData?: ConceptCardData } | null>(null);
+
+  const handleToolbarActivate = (text: string, rect: DOMRect) => {
+      // Check if already collected
+      const saved = article?.conceptCards?.find(c => c.term === text);
+      if (saved) {
+           setActiveCard({ 
+              x: rect.left, 
+              y: rect.top, 
+              term: text,
+              savedData: saved
+          });
+          return;
+      }
+
+      // Check limit
+      if (article?.conceptCards && article.conceptCards.length >= 5) {
+          // Optional: Show a toast or small alert
+          return;
+      }
+      
+      // Set card position
+      setActiveCard({ 
+          x: rect.left, 
+          y: rect.top, 
+          term: text 
+      });
+  };
+
+  const handleTermClick = (e: React.MouseEvent, term: string) => {
+      const saved = article?.conceptCards?.find(c => c.term === term);
+      if (saved) {
+        const rect = (e.target as HTMLElement).getBoundingClientRect();
+        setActiveCard({
+            x: rect.left,
+            y: rect.top,
+            term,
+            savedData: saved
+        });
+      }
+  };
+
+  const handleSaveCard = (data: ConceptCardData) => {
+      if (!article) return;
+      
+      const existingIndex = article.conceptCards?.findIndex(c => c.term === data.term);
+      let newCards;
+      
+      if (existingIndex !== undefined && existingIndex !== -1 && article.conceptCards) {
+          // Update existing
+          newCards = [...article.conceptCards];
+          newCards[existingIndex] = data;
+      } else {
+          // Add new
+          newCards = [...(article.conceptCards || []), data];
+      }
+
+      updateArticle(article.id, { conceptCards: newCards });
+      setArticle({ ...article, conceptCards: newCards });
+      setActiveCard(null);
+  };
+
   const lastNextTime = useRef<number>(0);
   const sessionStartTime = useRef<number>(Date.now());
   const [isCooldown, setIsCooldown] = useState(false);
@@ -116,15 +155,20 @@ function ReadContent() {
   // Auto scroll to center
   useEffect(() => {
     if (currentSentenceRef.current) {
-      // Use a small timeout to ensure DOM layout is stable before scrolling
-      // and avoid conflict with entry animations
-      const timer = setTimeout(() => {
-        currentSentenceRef.current?.scrollIntoView({
+      const el = currentSentenceRef.current;
+      
+      // Smart Scroll:
+      // If the element is taller than 50% of the viewport, align to top (start).
+      // Otherwise, align to center.
+      const rect = el.getBoundingClientRect();
+      const isLargeBlock = rect.height > window.innerHeight * 0.5;
+      
+      requestAnimationFrame(() => {
+        el.scrollIntoView({
           behavior: "smooth",
-          block: "center",
+          block: isLargeBlock ? "start" : "center",
         });
-      }, 50);
-      return () => clearTimeout(timer);
+      });
     }
     
     // Update progress
@@ -141,7 +185,16 @@ function ReadContent() {
     setCooldownProgress(0);
     setIsCooldown(true);
     const currentSentence = sentences[currentIndex] || "";
-    const minReadTime = 200 + (currentSentence.length * 20);
+    
+    // Smart Read Time:
+    // Base: 200ms
+    // Text: 20ms per char
+    // Markdown/Code: Cap at 3000ms to avoid frustration on long blocks
+    let minReadTime = 200 + (currentSentence.length * 20);
+    if (article?.type === 'markdown') {
+        // Cap at 3s for Markdown blocks to ensure flow isn't broken for huge code blocks
+        minReadTime = Math.min(minReadTime, 3000); 
+    }
     
     // Animate cooldown bar
     const startTime = Date.now();
@@ -200,7 +253,11 @@ function ReadContent() {
         
         // Dynamic Debounce based on sentence length
         const currentSentence = sentences[currentIndex] || "";
-        const minReadTime = 200 + (currentSentence.length * 20);
+        let minReadTime = 200 + (currentSentence.length * 20);
+        if (article?.type === 'markdown') {
+            minReadTime = Math.min(minReadTime, 3000);
+        }
+
         const now = Date.now();
         const timeSinceLast = now - lastNextTime.current;
 
@@ -230,19 +287,30 @@ function ReadContent() {
     };
 
     window.addEventListener("keydown", handleKeyDown, { passive: false });
-    // Disable wheel
-    const preventScroll = (e: Event) => e.preventDefault();
-    window.addEventListener("wheel", preventScroll, { passive: false });
-    window.addEventListener("touchmove", preventScroll, { passive: false });
-
+    
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("wheel", preventScroll);
-      window.removeEventListener("touchmove", preventScroll);
     };
   }, [currentIndex, sentences.length, router]);
 
   const [isFinished, setIsFinished] = useState(false);
+
+  const highlightMarkdown = (children: React.ReactNode) => {
+    if (!article?.conceptCards?.length) return children;
+    
+    return Children.map(children, child => {
+        if (typeof child === 'string') {
+            return (
+                <HighlightText 
+                    text={child} 
+                    cards={article.conceptCards || []} 
+                    onTermClick={handleTermClick} 
+                />
+            );
+        }
+        return child;
+    });
+  };
 
   if (!article) return null;
 
@@ -251,7 +319,7 @@ function ReadContent() {
     : 0;
 
   return (
-    <div className="h-screen w-full bg-[#FAFAFA] dark:bg-[#050505] text-zinc-900 dark:text-zinc-50 font-sans overflow-hidden flex flex-col selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black relative">
+    <div className="h-screen w-full bg-[#FAFAFA] dark:bg-black text-zinc-900 dark:text-zinc-50 font-sans overflow-hidden flex flex-col selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black relative">
       
       {/* Subtle Noise Texture */}
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none z-0 mix-blend-multiply dark:mix-blend-overlay"
@@ -271,31 +339,56 @@ function ReadContent() {
           </h1>
         </motion.div>
         
-        <motion.div 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-2 rounded-full border border-zinc-200/50 dark:border-zinc-800/50"
-        >
-          <span className="text-[10px] font-mono text-zinc-400">
-            {Math.round(progress)}%
-          </span>
-          <div className="w-12 h-1 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+        <div className="flex items-center gap-3">
+            {/* Concept HUD */}
             <motion.div
-              className="h-full bg-zinc-900 dark:bg-zinc-100"
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.5, ease: "circOut" }}
-            />
-          </div>
-        </motion.div>
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+            >
+                <ConceptHud 
+                    cards={article.conceptCards || []} 
+                    onTermClick={(term) => {
+                        const saved = article?.conceptCards?.find(c => c.term === term);
+                        if (saved) {
+                             // Center of screen roughly
+                            setActiveCard({
+                                x: window.innerWidth / 2 - 140, // 280px width / 2
+                                y: window.innerHeight / 2 - 100,
+                                term,
+                                savedData: saved
+                            });
+                        }
+                    }}
+                />
+            </motion.div>
+
+            <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-2 rounded-full border border-zinc-200/50 dark:border-zinc-800/50"
+            >
+            <span className="text-[10px] font-mono text-zinc-400">
+                {Math.round(progress)}%
+            </span>
+            <div className="w-12 h-1 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                <motion.div
+                className="h-full bg-zinc-900 dark:bg-zinc-100"
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: 0.5, ease: "circOut" }}
+                />
+            </div>
+            </motion.div>
+        </div>
       </header>
 
       {/* Reading Area */}
       <main 
         ref={containerRef}
-        className="flex-1 relative overflow-hidden flex flex-col items-center z-10"
+        className="flex-1 relative overflow-y-auto flex flex-col items-center z-10 scroll-smooth no-scrollbar"
       >
-        <div className="w-full max-w-2xl px-8 py-[45vh] flex flex-col gap-10">
+        <div className="w-full max-w-2xl px-8 py-[40vh] flex flex-col gap-10">
           {sentences.map((sentence, index) => {
             const isVisible = index <= currentIndex;
             const isCurrent = index === currentIndex;
@@ -320,7 +413,7 @@ function ReadContent() {
                   ease: "easeOut"
                 }}
                 className={twMerge(
-                  "relative group transition-all duration-500 ease-out my-8", // Static margin
+                  "relative group transition-all duration-500 ease-out my-8 scroll-mt-24", // Added scroll-mt-24
                   "will-change-transform", // Hint for browser
                   article.type === 'markdown' ? "w-full" : ""
                 )}
@@ -328,19 +421,20 @@ function ReadContent() {
                  {article.type === 'markdown' ? (
                   <div className={twMerge(
                     "text-lg md:text-xl leading-relaxed text-zinc-800 dark:text-zinc-200 transition-colors duration-300",
-                    isCurrent ? "opacity-100" : "opacity-40 blur-[1px]"
+                    isCurrent ? "opacity-100" : "opacity-50" // Removed blur for better readability
                   )}>
                     <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
                       rehypePlugins={[rehypeHighlight]}
                       components={{
-                        h1: ({children}) => <h1 className="text-3xl font-bold mt-8 mb-4 text-zinc-900 dark:text-zinc-50">{children}</h1>,
-                        h2: ({children}) => <h2 className="text-2xl font-bold mt-6 mb-3 text-zinc-900 dark:text-zinc-50">{children}</h2>,
-                        h3: ({children}) => <h3 className="text-xl font-bold mt-4 mb-2 text-zinc-900 dark:text-zinc-50">{children}</h3>,
-                        p: ({children}) => <p className="mb-4 leading-relaxed">{children}</p>,
+                        h1: ({children}) => <h1 className="text-3xl font-bold mt-8 mb-4 text-zinc-900 dark:text-zinc-50">{highlightMarkdown(children)}</h1>,
+                        h2: ({children}) => <h2 className="text-2xl font-bold mt-6 mb-3 text-zinc-900 dark:text-zinc-50">{highlightMarkdown(children)}</h2>,
+                        h3: ({children}) => <h3 className="text-xl font-bold mt-4 mb-2 text-zinc-900 dark:text-zinc-50">{highlightMarkdown(children)}</h3>,
+                        p: ({children}) => <p className="mb-4 leading-relaxed">{highlightMarkdown(children)}</p>,
                         ul: ({children}) => <ul className="list-disc list-inside mb-4 pl-4 space-y-1">{children}</ul>,
                         ol: ({children}) => <ol className="list-decimal list-inside mb-4 pl-4 space-y-1">{children}</ol>,
-                        li: ({children}) => <li className="mb-1">{children}</li>,
-                        blockquote: ({children}) => <blockquote className="border-l-4 border-zinc-300 dark:border-zinc-700 pl-4 italic my-4 text-zinc-500 dark:text-zinc-400">{children}</blockquote>,
+                        li: ({children}) => <li className="mb-1">{highlightMarkdown(children)}</li>,
+                        blockquote: ({children}) => <blockquote className="border-l-4 border-zinc-300 dark:border-zinc-700 pl-4 italic my-4 text-zinc-500 dark:text-zinc-400">{highlightMarkdown(children)}</blockquote>,
                         pre: ({children}) => <div className="my-6 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-sm"><pre className="bg-[#0d1117] p-4 overflow-x-auto text-sm font-mono text-zinc-100">{children}</pre></div>,
                         code: ({node, className, children, ...props}: any) => {
                           const match = /language-(\w+)/.exec(className || '');
@@ -356,7 +450,13 @@ function ReadContent() {
                           );
                         },
                         a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline decoration-blue-500/30">{children}</a>,
-                        img: ({src, alt}) => <img src={src} alt={alt} className="max-w-full h-auto rounded-lg my-4 shadow-sm" />
+                        img: ({src, alt}) => <img src={src} alt={alt} className="max-w-full h-auto rounded-lg my-4 shadow-sm" />,
+                        table: ({children}) => <div className="overflow-x-auto my-6 border border-zinc-200 dark:border-zinc-800 rounded-lg"><table className="min-w-full text-left text-sm">{children}</table></div>,
+                        thead: ({children}) => <thead className="bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 font-medium">{children}</thead>,
+                        tbody: ({children}) => <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">{children}</tbody>,
+                        tr: ({children}) => <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">{children}</tr>,
+                        th: ({children}) => <th className="p-3 text-zinc-900 dark:text-zinc-100">{children}</th>,
+                        td: ({children}) => <td className="p-3 text-zinc-600 dark:text-zinc-400">{children}</td>,
                       }}
                     >
                       {sentence}
@@ -367,7 +467,11 @@ function ReadContent() {
                    "text-xl md:text-3xl leading-relaxed font-serif tracking-wide transition-colors duration-300",
                    isCurrent ? "text-zinc-900 dark:text-zinc-50" : "text-zinc-300 dark:text-zinc-700"
                  )}>
-                   {sentence}
+                   <HighlightText 
+                      text={sentence} 
+                      cards={article.conceptCards || []} 
+                      onTermClick={handleTermClick} 
+                   />
                  </p>
                  )}
                  
@@ -412,6 +516,25 @@ function ReadContent() {
           </span>
         </div>
       </motion.footer>
+
+      {/* Selection Toolbar */}
+      <SelectionToolbar 
+        onActivate={handleToolbarActivate} 
+        disabled={!!activeCard} 
+      />
+
+      {/* Concept Card */}
+      <AnimatePresence>
+          {activeCard && (
+              <ConceptCard
+                  selection={activeCard.term}
+                  position={{ top: activeCard.y, left: activeCard.x }}
+                  savedData={activeCard.savedData}
+                  onSave={handleSaveCard}
+                  onClose={() => setActiveCard(null)}
+              />
+          )}
+      </AnimatePresence>
 
       {/* Completion Modal */}
       <AnimatePresence>

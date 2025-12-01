@@ -1,5 +1,14 @@
 export const ARTICLES_KEY = "articles";
 
+export interface ConceptCardData {
+  term: string;
+  myDefinition: string;
+  myExample: string;
+  myConnection: string;
+  confidence: number;
+  createdAt: number;
+}
+
 export interface Article {
   id: string;
   title: string;
@@ -11,6 +20,7 @@ export interface Article {
   lastRead: number;
   lastReadSentence?: number; // Index of last read sentence
   type?: 'text' | 'markdown';
+  conceptCards?: ConceptCardData[];
 }
 
 export function getArticles(): Article[] {
@@ -48,8 +58,11 @@ export function insertArticle(article: Article) {
 
 export function updateArticle(id: string, patch: Partial<Article>) {
   const list = getArticles();
-  const next = list.map((a) => (a.id === id ? { ...a, ...patch } : a));
-  saveArticles(next);
-  return next.find((a) => a.id === id);
+  const idx = list.findIndex((a) => a.id === id);
+  if (idx === -1) return list;
+  
+  const updated = { ...list[idx], ...patch };
+  list[idx] = updated;
+  saveArticles(list);
+  return list;
 }
-
