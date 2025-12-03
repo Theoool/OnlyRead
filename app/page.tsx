@@ -11,9 +11,11 @@ import {
   AlertCircle,
   History,
   Clipboard,
-  Command
+  Command,
+  Activity
 } from "lucide-react";
 import { twMerge } from "tailwind-merge";
+import { useConceptStore } from "@/lib/store/useConceptStore";
 
 function formatRelative(ts: number) {
   const diff = Date.now() - ts;
@@ -43,6 +45,7 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { concepts } = useConceptStore();
 
   useEffect(() => {
     setList(
@@ -352,12 +355,27 @@ export default function Home() {
               <History className="w-3 h-3" />
               Log Stream
             </div>
-            <span className="text-[10px] font-mono text-zinc-400">{list.length} RECORDS</span>
+            
+            <div className="flex items-center gap-4">
+                {/* Review Entry */}
+                <a href="/review" className="flex items-center gap-1 text-[10px] font-mono text-purple-500 hover:text-purple-600 transition-colors group">
+                    <Activity className="w-3 h-3 group-hover:animate-pulse" />
+                    REVIEW
+                </a>
+                
+                <span className="text-[10px] font-mono text-zinc-400 border-l border-zinc-200 dark:border-zinc-800 pl-4">
+                    {list.length} RECORDS
+                </span>
+            </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar">
+          <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar relative">
             <AnimatePresence mode="popLayout" initial={false}>
-              {recentFive.map((article, i) => (
+              {recentFive.map((article, i) => {
+                // Get concepts for this article
+                const articleConcepts = Object.values(concepts).filter(c => c.sourceArticleId === article.id);
+                
+                return (
                 <motion.button
                   layout
                   key={article.id}
@@ -380,9 +398,23 @@ export default function Home() {
                           {formatRelative(article.lastRead)}
                         </span>
                       </div>
-                      <h3 className="font-medium text-zinc-900 dark:text-zinc-100 truncate text-sm md:text-base">
+                      <h3 className="font-medium text-zinc-900 dark:text-zinc-100 truncate text-sm md:text-base mb-2">
                         {article.title}
                       </h3>
+                      
+                      {/* Concept Pills */}
+                      {articleConcepts.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                              {articleConcepts.slice(0, 3).map((c, idx) => (
+                                  <span key={idx} className="text-[10px] px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded border border-purple-100 dark:border-purple-900/30 truncate max-w-[100px]">
+                                      {c.term}
+                                  </span>
+                              ))}
+                              {articleConcepts.length > 3 && (
+                                  <span className="text-[10px] px-1.5 py-0.5 text-zinc-400">+{articleConcepts.length - 3}</span>
+                              )}
+                          </div>
+                      )}
                     </div>
                     
                     <div className="flex flex-col items-end justify-between h-full">
@@ -405,7 +437,7 @@ export default function Home() {
                     </div>
                   )}
                 </motion.button>
-              ))}
+              )})}
               
               {recentFive.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center text-zinc-400 space-y-4 opacity-50 mt-20">

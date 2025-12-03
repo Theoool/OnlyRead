@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useRef, Suspense, Children } from "react";
+import { useEffect, useState, useRef, Suspense, Children, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Article, getArticle, updateArticle, ConceptCardData } from "@/lib/articles";
 import { splitMarkdownBlocks, splitSentences } from "@/lib/text-processing";
@@ -14,8 +14,64 @@ import "highlight.js/styles/github-dark.css";
 import { ConceptCard } from "@/app/components/ConceptCard";
 import { SelectionToolbar } from "@/app/components/SelectionToolbar";
 import { ConceptHud } from "@/app/components/ConceptHud";
+import { useConceptStore, ConceptData } from "@/lib/store/useConceptStore";
 
-function HighlightText({ text, cards, onTermClick }: { text: string, cards: ConceptCardData[], onTermClick: (e: React.MouseEvent, term: string) => void }) {
+function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  return (
+    <div
+      className="relative w-full my-4 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+      style={{ aspectRatio: "16 / 9", minHeight: 180 }}
+    >
+      {!loaded && !error && (
+        <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900" />
+      )}
+      {!error && src ? (
+        <img
+          key={retryKey}
+          src={src}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          crossOrigin="anonymous"
+          className="absolute inset-0 w-full h-full object-contain"
+          onLoad={() => setLoaded(true)}
+          onError={() => setError(true)}
+        />
+      ) : null}
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+          <span>图片加载失败</span>
+          <button
+            onClick={() => {
+              setError(false);
+              setLoaded(false);
+              setRetryKey((k) => k + 1);
+            }}
+            className="px-2 py-1 rounded bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black"
+          >
+            重试
+          </button>
+          {src && (
+            <a
+              href={src}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700"
+            >
+              在新标签打开
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HighlightText({ text, cards, onTermClick }: { text: string, cards: ConceptData[], onTermClick: (e: React.MouseEvent, term: string) => void }) {
   if (!cards?.length) return <>{text}</>;
   
   const terms = cards.map(c => c.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
@@ -54,12 +110,23 @@ function ReadContent() {
   const [sentences, setSentences] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   
+  // Global Store
+  const { concepts, addConcept } = useConceptStore();
+  
+  // Compute visible concepts for this article
+  const visibleCards = useMemo(() => {
+      if (!article || !article.content) return [];
+      const all = Object.values(concepts);
+      // Simple inclusion check - can be optimized later
+      return all.filter(c => article.content!.includes(c.term));
+  }, [article, concepts]);
+  
   // Concept Card State
-  const [activeCard, setActiveCard] = useState<{ x: number; y: number; term: string; savedData?: ConceptCardData } | null>(null);
+  const [activeCard, setActiveCard] = useState<{ x: number; y: number; term: string; savedData?: ConceptData } | null>(null);
 
   const handleToolbarActivate = (text: string, rect: DOMRect) => {
-      // Check if already collected
-      const saved = article?.conceptCards?.find(c => c.term === text);
+      // Check if already collected (Global check)
+      const saved = concepts[text];
       if (saved) {
            setActiveCard({ 
               x: rect.left, 
@@ -70,10 +137,17 @@ function ReadContent() {
           return;
       }
 
-      // Check limit
-      if (article?.conceptCards && article.conceptCards.length >= 5) {
+      // Check limit (Per article context? Or global daily limit? Let's keep per-article limit logic for now based on visibleCards)
+      if (visibleCards.length >= 5) {
           // Optional: Show a toast or small alert
-          return;
+          // For now, we allow more since it's global, but maybe warn?
+          // Adhering to "Small & Beautiful", maybe we don't block strictly if it's global, 
+          // OR we block if *newly created* for this article exceeds 5.
+          // Let's relax it slightly for global store transition or keep strict.
+          // User instruction: "每篇文章最多5次".
+          // We count how many cards have sourceArticleId === currentId
+          const currentArticleCount = Object.values(concepts).filter(c => c.sourceArticleId === article?.id).length;
+          if (currentArticleCount >= 5) return;
       }
       
       // Set card position
@@ -85,7 +159,7 @@ function ReadContent() {
   };
 
   const handleTermClick = (e: React.MouseEvent, term: string) => {
-      const saved = article?.conceptCards?.find(c => c.term === term);
+      const saved = concepts[term];
       if (saved) {
         const rect = (e.target as HTMLElement).getBoundingClientRect();
         setActiveCard({
@@ -97,23 +171,14 @@ function ReadContent() {
       }
   };
 
-  const handleSaveCard = (data: ConceptCardData) => {
+  const handleSaveCard = (data: ConceptData) => {
       if (!article) return;
       
-      const existingIndex = article.conceptCards?.findIndex(c => c.term === data.term);
-      let newCards;
+      addConcept({
+          ...data,
+          sourceArticleId: article.id
+      });
       
-      if (existingIndex !== undefined && existingIndex !== -1 && article.conceptCards) {
-          // Update existing
-          newCards = [...article.conceptCards];
-          newCards[existingIndex] = data;
-      } else {
-          // Add new
-          newCards = [...(article.conceptCards || []), data];
-      }
-
-      updateArticle(article.id, { conceptCards: newCards });
-      setArticle({ ...article, conceptCards: newCards });
       setActiveCard(null);
   };
 
@@ -296,14 +361,14 @@ function ReadContent() {
   const [isFinished, setIsFinished] = useState(false);
 
   const highlightMarkdown = (children: React.ReactNode) => {
-    if (!article?.conceptCards?.length) return children;
+    if (!visibleCards.length) return children;
     
     return Children.map(children, child => {
         if (typeof child === 'string') {
             return (
                 <HighlightText 
                     text={child} 
-                    cards={article.conceptCards || []} 
+                    cards={visibleCards} 
                     onTermClick={handleTermClick} 
                 />
             );
@@ -347,9 +412,9 @@ function ReadContent() {
                 transition={{ delay: 0.2 }}
             >
                 <ConceptHud 
-                    cards={article.conceptCards || []} 
+                    cards={visibleCards} 
                     onTermClick={(term) => {
-                        const saved = article?.conceptCards?.find(c => c.term === term);
+                        const saved = concepts[term];
                         if (saved) {
                              // Center of screen roughly
                             setActiveCard({
@@ -450,7 +515,7 @@ function ReadContent() {
                           );
                         },
                         a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline decoration-blue-500/30">{children}</a>,
-                        img: ({src, alt}) => <img src={src} alt={alt} className="max-w-full h-auto rounded-lg my-4 shadow-sm" />,
+                        img: ({ src, alt }) => <MarkdownImage src={src as string} alt={alt as string} />,
                         table: ({children}) => <div className="overflow-x-auto my-6 border border-zinc-200 dark:border-zinc-800 rounded-lg"><table className="min-w-full text-left text-sm">{children}</table></div>,
                         thead: ({children}) => <thead className="bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 font-medium">{children}</thead>,
                         tbody: ({children}) => <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">{children}</tbody>,
@@ -469,7 +534,7 @@ function ReadContent() {
                  )}>
                    <HighlightText 
                       text={sentence} 
-                      cards={article.conceptCards || []} 
+                      cards={visibleCards} 
                       onTermClick={handleTermClick} 
                    />
                  </p>

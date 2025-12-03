@@ -3,14 +3,14 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, Sparkles, PenLine, Check, X, ChevronRight, ArrowLeft, Bookmark } from "lucide-react";
-import { ConceptCardData } from "@/lib/articles";
+import { ConceptData } from "@/lib/store/useConceptStore";
 import { getCachedConcept, setCachedConcept } from "@/lib/cache";
 
 interface ConceptCardProps {
   selection: string;
   position: { top: number; left: number };
-  savedData?: ConceptCardData;
-  onSave: (data: ConceptCardData) => void;
+  savedData?: ConceptData;
+  onSave: (data: ConceptData) => void;
   onClose: () => void;
 }
 interface AIResponse {

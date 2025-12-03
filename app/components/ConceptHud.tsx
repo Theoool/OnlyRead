@@ -1,9 +1,9 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Hexagon } from "lucide-react";
-import { ConceptCardData } from "@/lib/articles";
+import { ConceptData } from "@/lib/store/useConceptStore";
 
 interface ConceptHudProps {
-  cards: ConceptCardData[];
+  cards: ConceptData[];
   onTermClick?: (term: string) => void;
 }
 
