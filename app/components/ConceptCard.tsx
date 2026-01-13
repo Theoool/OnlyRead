@@ -83,6 +83,7 @@ export function ConceptCard({ selection, position, savedData, onSave, onClose }:
       try {
         const res = await fetch("/api/concept", {
           method: "POST",
+          credentials: 'include',
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ selection }),
         });

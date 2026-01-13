@@ -7,7 +7,7 @@ import { splitMarkdownBlocks, splitSentences } from "@/lib/text-processing";
 import { recordSession } from "@/lib/stats";
 import { motion, AnimatePresence } from "framer-motion";
 import { twMerge } from "tailwind-merge";
-import { Check, Lock, X, ArrowLeft, ChevronRight, BookOpen, Loader2 } from "lucide-react";
+import { Check, BookOpen, Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
@@ -138,15 +138,9 @@ function ReadContent() {
           return;
       }
 
-      // Check limit (Per article context? Or global daily limit? Let's keep per-article limit logic for now based on visibleCards)
+    
       if (visibleCards.length >= 5) {
-          // Optional: Show a toast or small alert
-          // For now, we allow more since it's global, but maybe warn?
-          // Adhering to "Small & Beautiful", maybe we don't block strictly if it's global, 
-          // OR we block if *newly created* for this article exceeds 5.
-          // Let's relax it slightly for global store transition or keep strict.
-          // User instruction: "每篇文章最多5次".
-          // We count how many cards have sourceArticleId === currentId
+         
           const currentArticleCount = Object.values(concepts).filter(c => c.sourceArticleId === article?.id).length;
           if (currentArticleCount >= 5) return;
       }
@@ -272,7 +266,7 @@ function ReadContent() {
     
     // Smart Read Time:
     // Base: 200ms
-    // Text: 20ms per char
+    // Text: char 20ms per
     // Markdown/Code: Cap at 3000ms to avoid frustration on long blocks
     let minReadTime = 200 + (currentSentence.length * 20);
     if (article?.type === 'markdown') {
@@ -352,7 +346,7 @@ function ReadContent() {
         }
 
         if (currentIndex < sentences.length - 1) {
-          lastNextTime.current = now;
+          lastNextTime.current = now;  
           setCurrentIndex((prev) => prev + 1);
         } else {
           // Finished

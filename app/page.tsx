@@ -20,8 +20,9 @@ import {
 } from "lucide-react";
 import { twMerge } from "tailwind-merge";
 import { useConceptStore } from "@/lib/store/useConceptStore";
+import { useAuthStore } from "@/lib/store/useAuthStore";
 import { SearchBar } from "@/app/components/SearchBar";
-import { MigrationCheck } from "@/app/components/MigrationCheck";
+import { User, LogOut } from "lucide-react";
 
 function formatRelative(ts: number) {
   const diff = Date.now() - ts;
@@ -43,6 +44,7 @@ function truncate(input: string, n = 20) {
 }
 
 export default function Home() {
+  const { isAuthenticated, user, logout, fetchSession } = useAuthStore();
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -51,7 +53,7 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { concepts } = useConceptStore();
+  const { concepts, loadConcepts } = useConceptStore();
 
   // Quick stats state
   const [quickStats, setQuickStats] = useState<{
@@ -62,6 +64,9 @@ export default function Home() {
 
   useEffect(() => {
     const loadArticles = async () => {
+      // Fetch session first
+      await fetchSession();
+
       try {
         const articles = await articlesAPI.getArticles();
         setList(
@@ -78,6 +83,11 @@ export default function Home() {
 
       // Fetch quick stats
       fetchQuickStats();
+
+      // Load concepts if authenticated
+      if (isAuthenticated) {
+        loadConcepts();
+      }
     };
 
     loadArticles();
@@ -86,8 +96,8 @@ export default function Home() {
   const fetchQuickStats = async () => {
     try {
       const [masteryRes, learningRes] = await Promise.all([
-        fetch('/api/stats/mastery'),
-        fetch('/api/stats/learning?period=all'),
+        fetch('/api/stats/mastery', { credentials: 'include' }),
+        fetch('/api/stats/learning?period=all', { credentials: 'include' }),
       ]);
 
       if (masteryRes.ok && learningRes.ok) {
@@ -195,6 +205,7 @@ export default function Home() {
       if (isUrl(input)) {
         const res = await fetch("/api/fetch", {
           method: "POST",
+          credentials: 'include',
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url: input }),
         });
@@ -258,8 +269,7 @@ export default function Home() {
   if (!mounted) return null;
 
   return (
-    <MigrationCheck>
-      <div className="h-screen w-full flex flex-col bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-50 font-sans overflow-hidden">
+    <div className="h-screen w-full flex flex-col bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-50 font-sans overflow-hidden">
       {/* Main Layout: Split View */}
       <main className="flex-1 flex flex-col md:flex-row h-full overflow-hidden">
         
@@ -290,6 +300,41 @@ export default function Home() {
               <span className="w-2 h-2 bg-black dark:bg-white rounded-full inline-block"/>
               数字忏悔室
             </h1>
+
+            {/* Auth UI */}
+            <div className="flex items-center gap-3">
+              {isAuthenticated && user ? (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    {user.avatarUrl && (
+                      <img
+                        src={user.avatarUrl}
+                        alt={user.fullName || user.email}
+                        className="w-6 h-6 rounded-full"
+                      />
+                    )}
+                    <span className="text-zinc-600 dark:text-zinc-400">
+                      {user.fullName || user.email?.split('@')[0]}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => logout()}
+                    className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                    title="Logout"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => window.location.href = '/auth'}
+                  className="flex items-center gap-2 px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
+                >
+                  <User className="w-4 h-4" />
+                  Login
+                </button>
+              )}
+            </div>
           </motion.header>
 
           {/* Quick Stats */}
@@ -565,6 +610,5 @@ export default function Home() {
         </section>
       </main>
     </div>
-    </MigrationCheck>
   );
 }
