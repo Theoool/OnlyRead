@@ -1,21 +1,27 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Article, getArticles, insertArticle, updateArticle } from "@/lib/articles";
+import * as articlesAPI from "@/lib/api/articles";
+import type { Article } from "@/lib/articles-legacy";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Loader2, 
-  Link as LinkIcon, 
-  FileText, 
-  Clock, 
-  ArrowRight, 
+import {
+  Loader2,
+  Link as LinkIcon,
+  FileText,
+  Clock,
+  ArrowRight,
   AlertCircle,
   History,
   Clipboard,
   Command,
-  Activity
+  Activity,
+  TrendingUp,
+  Brain,
+  Flame,
 } from "lucide-react";
 import { twMerge } from "tailwind-merge";
 import { useConceptStore } from "@/lib/store/useConceptStore";
+import { SearchBar } from "@/app/components/SearchBar";
+import { MigrationCheck } from "@/app/components/MigrationCheck";
 
 function formatRelative(ts: number) {
   const diff = Date.now() - ts;
@@ -47,15 +53,57 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { concepts } = useConceptStore();
 
+  // Quick stats state
+  const [quickStats, setQuickStats] = useState<{
+    dueCount: number;
+    currentStreak: number;
+    totalConcepts: number;
+  } | null>(null);
+
   useEffect(() => {
-    setList(
-      getArticles()
-        .slice()
-        .sort((a, b) => b.lastRead - a.lastRead)
-    );
-    setMounted(true);
-    textareaRef.current?.focus();
+    const loadArticles = async () => {
+      try {
+        const articles = await articlesAPI.getArticles();
+        setList(
+          articles
+            .slice()
+            .sort((a: any, b: any) => (b.lastRead || 0) - (a.lastRead || 0))
+        );
+      } catch (error) {
+        console.error('Failed to load articles:', error);
+      } finally {
+        setMounted(true);
+        textareaRef.current?.focus();
+      }
+
+      // Fetch quick stats
+      fetchQuickStats();
+    };
+
+    loadArticles();
   }, []);
+
+  const fetchQuickStats = async () => {
+    try {
+      const [masteryRes, learningRes] = await Promise.all([
+        fetch('/api/stats/mastery'),
+        fetch('/api/stats/learning?period=all'),
+      ]);
+
+      if (masteryRes.ok && learningRes.ok) {
+        const mastery = await masteryRes.json();
+        const learning = await learningRes.json();
+
+        setQuickStats({
+          dueCount: mastery.dueCount || 0,
+          currentStreak: learning.currentStreak || 0,
+          totalConcepts: learning.totalConcepts || 0,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch quick stats:', error);
+    }
+  };
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -187,11 +235,19 @@ export default function Home() {
     }
   }
 
-  function updateList(article: Article) {
-    const next = insertArticle(article)
-      .slice()
-      .sort((a, b) => b.lastRead - a.lastRead);
-    setList(next);
+  async function updateList(article: Article) {
+    try {
+      await articlesAPI.saveArticle(article);
+      const articles = await articlesAPI.getArticles();
+      setList(
+        articles
+          .slice()
+          .sort((a: any, b: any) => (b.lastRead || 0) - (a.lastRead || 0))
+      );
+    } catch (error) {
+      console.error('Failed to save article:', error);
+      setError('保存失败，请重试');
+    }
   }
 
   function onClickItem(a: Article) {
@@ -202,7 +258,8 @@ export default function Home() {
   if (!mounted) return null;
 
   return (
-    <div className="h-screen w-full flex flex-col bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-50 font-sans overflow-hidden">
+    <MigrationCheck>
+      <div className="h-screen w-full flex flex-col bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-50 font-sans overflow-hidden">
       {/* Main Layout: Split View */}
       <main className="flex-1 flex flex-col md:flex-row h-full overflow-hidden">
         
@@ -224,16 +281,58 @@ export default function Home() {
             onChange={onFileSelect}
           />
 
-          <motion.header 
+          <motion.header
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8 md:mb-auto"
+            className="mb-6 flex items-center justify-between"
           >
             <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
               <span className="w-2 h-2 bg-black dark:bg-white rounded-full inline-block"/>
               数字忏悔室
             </h1>
           </motion.header>
+
+          {/* Quick Stats */}
+          {quickStats && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="grid grid-cols-3 gap-3 mb-6"
+            >
+              <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-100 dark:border-purple-900/30">
+                <div className="flex items-center gap-2 mb-1">
+                  <Brain className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                  <span className="text-xs font-medium text-purple-600 dark:text-purple-400">Due</span>
+                </div>
+                <div className="text-lg font-bold text-zinc-900 dark:text-white">{quickStats.dueCount}</div>
+              </div>
+              <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3 border border-orange-100 dark:border-orange-900/30">
+                <div className="flex items-center gap-2 mb-1">
+                  <Flame className="w-3 h-3 text-orange-600 dark:text-orange-400" />
+                  <span className="text-xs font-medium text-orange-600 dark:text-orange-400">Streak</span>
+                </div>
+                <div className="text-lg font-bold text-zinc-900 dark:text-white">{quickStats.currentStreak}</div>
+              </div>
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-100 dark:border-blue-900/30">
+                <div className="flex items-center gap-2 mb-1">
+                  <TrendingUp className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                  <span className="text-xs font-medium text-blue-600 dark:text-blue-400">Cards</span>
+                </div>
+                <div className="text-lg font-bold text-zinc-900 dark:text-white">{quickStats.totalConcepts}</div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Search Bar */}
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="mb-6"
+          >
+            <SearchBar />
+          </motion.div>
 
           <div className="flex-1 flex flex-col justify-center relative">
             {isDragging && (
@@ -357,12 +456,24 @@ export default function Home() {
             </div>
             
             <div className="flex items-center gap-4">
+                {/* Stats Link */}
+                <a href="/stats" className="flex items-center gap-1 text-[10px] font-mono text-blue-500 hover:text-blue-600 transition-colors group">
+                    <TrendingUp className="w-3 h-3" />
+                    STATS
+                </a>
+
                 {/* Review Entry */}
                 <a href="/review" className="flex items-center gap-1 text-[10px] font-mono text-purple-500 hover:text-purple-600 transition-colors group">
                     <Activity className="w-3 h-3 group-hover:animate-pulse" />
                     REVIEW
                 </a>
-                
+
+                {/* Search Link */}
+                <a href="/search" className="flex items-center gap-1 text-[10px] font-mono text-zinc-500 hover:text-zinc-600 transition-colors">
+                    <Command className="w-3 h-3" />
+                    SEARCH
+                </a>
+
                 <span className="text-[10px] font-mono text-zinc-400 border-l border-zinc-200 dark:border-zinc-800 pl-4">
                     {list.length} RECORDS
                 </span>
@@ -454,5 +565,6 @@ export default function Home() {
         </section>
       </main>
     </div>
+    </MigrationCheck>
   );
 }

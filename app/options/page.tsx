@@ -1,40 +1,50 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Article, getArticles, saveArticles, insertArticle } from "@/lib/articles";
+import * as articlesAPI from "@/lib/api/articles";
+import type { Article } from "@/lib/articles-legacy";
 import { getReadingStats, ReadingSession } from "@/lib/stats";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Trash2, 
-  Download, 
-  Play, 
-  RotateCcw, 
-  Archive, 
-  Clock, 
-  FileText, 
-  Activity, 
+import {
+  Trash2,
+  Download,
+  Play,
+  RotateCcw,
+  Archive,
+  Clock,
+  FileText,
+  Activity,
   Zap,
   AlertTriangle,
   ArrowLeft
 } from "lucide-react";
 import { twMerge } from "tailwind-merge";
 // We'll try to dynamically import jszip to avoid build errors if not present
-// import JSZip from "jszip"; 
+// import JSZip from "jszip";
 
 export default function OptionsPage() {
   const router = useRouter();
   const [articles, setArticles] = useState<Article[]>([]);
   const [stats, setStats] = useState<ReadingSession[]>([]);
   const [mounted, setMounted] = useState(false);
-  
+
   // Dialog state
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showConcept, setShowConcept] = useState(false);
 
   useEffect(() => {
-    setArticles(getArticles());
-    setStats(getReadingStats());
-    setMounted(true);
+    const loadData = async () => {
+      try {
+        const loadedArticles = await articlesAPI.getArticles();
+        setArticles(loadedArticles);
+      } catch (error) {
+        console.error('Failed to load articles:', error);
+      }
+      setStats(getReadingStats());
+      setMounted(true);
+    };
+
+    loadData();
   }, []);
 
   const statistics = useMemo(() => {

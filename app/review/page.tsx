@@ -10,14 +10,20 @@ import { getCachedConcept } from "@/lib/cache";
 
 export default function ReviewPage() {
   const router = useRouter();
-  const { concepts, updateConcept } = useConceptStore();
+  const { concepts, updateConcept, loadConcepts, loading } = useConceptStore();
   const [queue, setQueue] = useState<ConceptData[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
+  const [rating, setRating] = useState(false);
 
   // AI Definition State (fetched from cache or placeholder)
   const [aiDefinition, setAiDefinition] = useState<string | null>(null);
+
+  // Load concepts on mount
+  useEffect(() => {
+    loadConcepts();
+  }, []);
 
   useEffect(() => {
     // Filter concepts due for review
@@ -26,7 +32,7 @@ export default function ReviewPage() {
       // If never reviewed, it's due. Or if nextReviewDate is passed.
       return !c.nextReviewDate || c.nextReviewDate <= now;
     });
-    
+
     // Limit to 10 per session to keep it "Small & Beautiful"
     setQueue(due.sort((a, b) => (a.nextReviewDate || 0) - (b.nextReviewDate || 0)).slice(0, 10));
   }, [concepts]);
@@ -40,17 +46,28 @@ export default function ReviewPage() {
       }
   }, [currentCard]);
 
-  const handleRate = (quality: number) => {
-    if (!currentCard) return;
+  const handleRate = async (quality: number) => {
+    if (!currentCard || rating) return;
 
+    setRating(true);
     const updates = calculateSRS(currentCard, quality);
-    updateConcept(currentCard.term, updates);
 
-    if (currentIndex < queue.length - 1) {
-      setIsFlipped(false);
-      setTimeout(() => setCurrentIndex(prev => prev + 1), 300);
-    } else {
-      setIsFinished(true);
+    try {
+      await updateConcept(currentCard.term, updates);
+
+      if (currentIndex < queue.length - 1) {
+        setIsFlipped(false);
+        setTimeout(() => {
+          setCurrentIndex(prev => prev + 1);
+          setRating(false);
+        }, 300);
+      } else {
+        setIsFinished(true);
+        setRating(false);
+      }
+    } catch (error) {
+      console.error('Failed to update concept:', error);
+      setRating(false);
     }
   };
 

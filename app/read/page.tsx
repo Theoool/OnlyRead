@@ -1,12 +1,13 @@
 "use client";
 import { useEffect, useState, useRef, Suspense, Children, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Article, getArticle, updateArticle, ConceptCardData } from "@/lib/articles";
+import * as articlesAPI from "@/lib/api/articles";
+import type { Article, ConceptCardData } from "@/lib/articles-legacy";
 import { splitMarkdownBlocks, splitSentences } from "@/lib/text-processing";
 import { recordSession } from "@/lib/stats";
 import { motion, AnimatePresence } from "framer-motion";
 import { twMerge } from "tailwind-merge";
-import { Check, Lock, X, ArrowLeft, ChevronRight, BookOpen } from "lucide-react";
+import { Check, Lock, X, ArrowLeft, ChevronRight, BookOpen, Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
@@ -171,21 +172,25 @@ function ReadContent() {
       }
   };
 
-  const handleSaveCard = (data: ConceptData) => {
+  const handleSaveCard = async (data: ConceptData) => {
       if (!article) return;
-      
-      addConcept({
-          ...data,
-          sourceArticleId: article.id
-      });
-      
-      setActiveCard(null);
+
+      try {
+          await addConcept({
+              ...data,
+              sourceArticleId: article.id
+          });
+          setActiveCard(null);
+      } catch (error) {
+          console.error('Failed to save concept:', error);
+      }
   };
 
   const lastNextTime = useRef<number>(0);
   const sessionStartTime = useRef<number>(Date.now());
   const [isCooldown, setIsCooldown] = useState(false);
   const [shake, setShake] = useState(0);
+  const [loadingArticle, setLoadingArticle] = useState(true);
   const [cooldownProgress, setCooldownProgress] = useState(100);
 
   // Scroll ref
@@ -193,28 +198,42 @@ function ReadContent() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!id) {
-      router.replace("/");
-      return;
-    }
-    const found = getArticle(id);
-    if (!found) {
-      router.replace("/");
-      return;
-    }
+    const loadArticle = async () => {
+      if (!id) {
+        router.replace("/");
+        return;
+      }
 
-    setArticle(found);
-    const s = found.type === 'markdown' 
-      ? splitMarkdownBlocks(found.content || "") 
-      : splitSentences(found.content || "");
-    setSentences(s);
-    
-    // Restore progress
-    if (found.lastReadSentence && found.lastReadSentence < s.length) {
-      setCurrentIndex(found.lastReadSentence);
-    } else {
-      setCurrentIndex(0);
-    }
+      setLoadingArticle(true);
+
+      try {
+        const found = await articlesAPI.getArticle(id);
+        if (!found) {
+          router.replace("/");
+          return;
+        }
+
+        setArticle(found);
+        const s = found.type === 'markdown'
+          ? splitMarkdownBlocks(found.content || "")
+          : splitSentences(found.content || "");
+        setSentences(s);
+
+        // Restore progress
+        if (found.lastReadSentence && found.lastReadSentence < s.length) {
+          setCurrentIndex(found.lastReadSentence);
+        } else {
+          setCurrentIndex(0);
+        }
+      } catch (error) {
+        console.error('Failed to load article:', error);
+        router.replace("/");
+      } finally {
+        setLoadingArticle(false);
+      }
+    };
+
+    loadArticle();
   }, [id, router]);
 
   // Auto scroll to center
@@ -239,11 +258,11 @@ function ReadContent() {
     // Update progress
     if (article && sentences.length > 0) {
       const progress = ((currentIndex + 1) / sentences.length) * 100;
-      updateArticle(article.id, {
+      articlesAPI.updateArticle(article.id, {
         progress,
         lastReadSentence: currentIndex,
         lastRead: Date.now(),
-      });
+      }).catch(err => console.error('Failed to update article progress:', err));
     }
     
     // Reset cooldown animation on new sentence
@@ -376,6 +395,17 @@ function ReadContent() {
         return child;
     });
   };
+
+  if (loadingArticle) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-black">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-zinc-400" />
+          <p className="text-zinc-500 dark:text-zinc-400">Loading article...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!article) return null;
 
