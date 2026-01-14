@@ -2,15 +2,17 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useConceptStore, ConceptData } from "@/lib/store/useConceptStore";
+import { ConceptData } from "@/lib/store/useConceptStore";
 import { calculateSRS } from "@/lib/srs";
 import { motion, AnimatePresence } from "framer-motion";
 import { Brain, Check, X, ArrowRight, RotateCw, Eye, EyeOff, Home } from "lucide-react";
-import { getCachedConcept } from "@/lib/cache";
+import { getCachedConcept, setCachedConcept } from "@/lib/cache";
+import { useConcepts, useUpdateConcept } from "@/lib/hooks";
 
 export default function ReviewPage() {
   const router = useRouter();
-  const { concepts, updateConcept, loadConcepts, loading } = useConceptStore();
+  const { concepts, loading } = useConcepts();
+  const updateConceptMutation = useUpdateConcept();
   const [queue, setQueue] = useState<ConceptData[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -20,11 +22,7 @@ export default function ReviewPage() {
   // AI Definition State (fetched from cache or placeholder)
   const [aiDefinition, setAiDefinition] = useState<string | null>(null);
 
-  // Load concepts on mount
-  useEffect(() => {
-    loadConcepts();
-  }, []);
-
+  // Filter concepts due for review (使用useMemo自动更新)
   useEffect(() => {
     // Filter concepts due for review
     const now = Date.now();
@@ -36,6 +34,27 @@ export default function ReviewPage() {
     // Limit to 10 per session to keep it "Small & Beautiful"
     setQueue(due.sort((a, b) => (a.nextReviewDate || 0) - (b.nextReviewDate || 0)).slice(0, 10));
   }, [concepts]);
+
+  // Preload AI definition for the next card
+  useEffect(() => {
+    const nextCard = queue[currentIndex + 1];
+    if (nextCard) {
+      const cached = getCachedConcept<any>(nextCard.term);
+      if (!cached) {
+        // Prefetch silently
+        fetch("/api/concept", {
+            method: "POST",
+            credentials: 'include',
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ selection: nextCard.term }),
+        }).then(res => res.json()).then(data => {
+            if (data.term) {
+                setCachedConcept(nextCard.term, data);
+            }
+        }).catch(() => {});
+      }
+    }
+  }, [currentIndex, queue]);
 
   const currentCard = queue[currentIndex];
 
@@ -53,7 +72,10 @@ export default function ReviewPage() {
     const updates = calculateSRS(currentCard, quality);
 
     try {
-      await updateConcept(currentCard.term, updates);
+      await updateConceptMutation.mutateAsync({
+        term: currentCard.term,
+        data: updates,
+      });
 
       if (currentIndex < queue.length - 1) {
         setIsFlipped(false);

@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import * as articlesAPI from "@/lib/api/articles";
-import type { Article } from "@/lib/articles-legacy";
+import type { Article } from "@/lib/api/articles";
 import { getReadingStats, ReadingSession } from "@/lib/stats";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -85,11 +85,15 @@ export default function OptionsPage() {
     };
   }, [articles, stats]);
 
-  function handleDelete(id: string) {
-    const next = articles.filter(a => a.id !== id);
-    saveArticles(next);
-    setArticles(next);
-    setDeleteId(null);
+  async function handleDelete(id: string) {
+    try {
+      await articlesAPI.deleteArticle(id);
+      const next = articles.filter(a => a.id !== id);
+      setArticles(next);
+      setDeleteId(null);
+    } catch (error) {
+      console.error('Failed to delete article:', error);
+    }
   }
 
   function handleDownload(a: Article) {
@@ -256,10 +260,12 @@ export default function OptionsPage() {
                   <div className="flex items-center gap-3 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
                     {article.progress >= 99 ? (
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           // Reset and read
-                          const next = articles.map(a => a.id === article.id ? { ...a, progress: 0, lastReadSentence: 0 } : a);
-                          saveArticles(next);
+                          const updated = { ...article, progress: 0, lastReadSentence: 0 };
+                          await articlesAPI.saveArticle(updated);
+                          const next = articles.map(a => a.id === article.id ? updated : a);
+                          setArticles(next);
                           router.push(`/read?id=${article.id}`);
                         }}
                         className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-lg transition-colors"

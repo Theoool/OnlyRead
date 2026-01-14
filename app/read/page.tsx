@@ -1,8 +1,7 @@
 "use client";
-import { useEffect, useState, useRef, Suspense, Children, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, Suspense, Children } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import * as articlesAPI from "@/lib/api/articles";
-import type { Article, ConceptCardData } from "@/lib/articles-legacy";
+import type { Article, ConceptCardData } from "@/lib/api/articles";
 import { splitMarkdownBlocks, splitSentences } from "@/lib/text-processing";
 import { recordSession } from "@/lib/stats";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,18 +15,20 @@ import { ConceptCard } from "@/app/components/ConceptCard";
 import { SelectionToolbar } from "@/app/components/SelectionToolbar";
 import { ConceptHud } from "@/app/components/ConceptHud";
 import { useConceptStore, ConceptData } from "@/lib/store/useConceptStore";
+import { useArticle, useUpdateArticleProgress } from "@/lib/hooks";
+
 
 function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   return (
-    <div
-      className="relative w-full my-4 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+    <span
+      className="block relative w-full my-4 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
       style={{ aspectRatio: "16 / 9", minHeight: 180 }}
     >
       {!loaded && !error && (
-        <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900" />
+        <span className="block absolute inset-0 animate-pulse bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900" />
       )}
       {!error && src ? (
         <img
@@ -44,7 +45,7 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
         />
       ) : null}
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+        <span className="absolute inset-0 flex items-center justify-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
           <span>图片加载失败</span>
           <button
             onClick={() => {
@@ -66,9 +67,9 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
               在新标签打开
             </a>
           )}
-        </div>
+        </span>
       )}
-    </div>
+    </span>
   );
 }
 
@@ -107,26 +108,28 @@ function ReadContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const id = searchParams.get("id");
-  const [article, setArticle] = useState<Article | null>(null);
+
+  // React Query hooks - 自动加载和缓存文章
+  const { data: article, isLoading: isLoadingArticle, error: articleError } = useArticle(id || '');
+  const updateProgressMutation = useUpdateArticleProgress();
+
   const [sentences, setSentences] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  
-  // Global Store
+
   const { concepts, addConcept } = useConceptStore();
-  
-  // Compute visible concepts for this article
+
   const visibleCards = useMemo(() => {
       if (!article || !article.content) return [];
       const all = Object.values(concepts);
-      // Simple inclusion check - can be optimized later
+     
       return all.filter(c => article.content!.includes(c.term));
   }, [article, concepts]);
-  
-  // Concept Card State
+
+
   const [activeCard, setActiveCard] = useState<{ x: number; y: number; term: string; savedData?: ConceptData } | null>(null);
 
   const handleToolbarActivate = (text: string, rect: DOMRect) => {
-      // Check if already collected (Global check)
+    
       const saved = concepts[text];
       if (saved) {
            setActiveCard({ 
@@ -184,51 +187,36 @@ function ReadContent() {
   const sessionStartTime = useRef<number>(Date.now());
   const [isCooldown, setIsCooldown] = useState(false);
   const [shake, setShake] = useState(0);
-  const [loadingArticle, setLoadingArticle] = useState(true);
   const [cooldownProgress, setCooldownProgress] = useState(100);
 
   // Scroll ref
   const currentSentenceRef = useRef<HTMLParagraphElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // 错误处理 - 文章不存在或加载失败
   useEffect(() => {
-    const loadArticle = async () => {
-      if (!id) {
-        router.replace("/");
-        return;
+    if (articleError && !isLoadingArticle) {
+      console.error('Failed to load article:', articleError);
+      router.replace("/");
+    }
+  }, [articleError, isLoadingArticle, router]);
+
+  // 文章加载后初始化句子和进度
+  useEffect(() => {
+    if (article) {
+      const s = article.type === 'markdown'
+        ? splitMarkdownBlocks(article.content || "")
+        : splitSentences(article.content || "");
+      setSentences(s);
+
+      // Restore progress
+      if (article.lastReadSentence && article.lastReadSentence < s.length) {
+        setCurrentIndex(article.lastReadSentence);
+      } else {
+        setCurrentIndex(0);
       }
-
-      setLoadingArticle(true);
-
-      try {
-        const found = await articlesAPI.getArticle(id);
-        if (!found) {
-          router.replace("/");
-          return;
-        }
-
-        setArticle(found);
-        const s = found.type === 'markdown'
-          ? splitMarkdownBlocks(found.content || "")
-          : splitSentences(found.content || "");
-        setSentences(s);
-
-        // Restore progress
-        if (found.lastReadSentence && found.lastReadSentence < s.length) {
-          setCurrentIndex(found.lastReadSentence);
-        } else {
-          setCurrentIndex(0);
-        }
-      } catch (error) {
-        console.error('Failed to load article:', error);
-        router.replace("/");
-      } finally {
-        setLoadingArticle(false);
-      }
-    };
-
-    loadArticle();
-  }, [id, router]);
+    }
+  }, [article]);
 
   // Auto scroll to center
   useEffect(() => {
@@ -252,11 +240,12 @@ function ReadContent() {
     // Update progress
     if (article && sentences.length > 0) {
       const progress = ((currentIndex + 1) / sentences.length) * 100;
-      articlesAPI.updateArticle(article.id, {
+      updateProgressMutation.mutate({
+        id: article.id,
         progress,
         lastReadSentence: currentIndex,
         lastRead: Date.now(),
-      }).catch(err => console.error('Failed to update article progress:', err));
+      });
     }
     
     // Reset cooldown animation on new sentence
@@ -390,7 +379,7 @@ function ReadContent() {
     });
   };
 
-  if (loadingArticle) {
+  if (isLoadingArticle) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-black">
         <div className="text-center">

@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
 
   // Optimize for production
   reactStrictMode: true,
-  swcMinify: true,
+  // swcMinify is now default in Next.js 16, no need to specify
 
   // Environment variables
   env: {
