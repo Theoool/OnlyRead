@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm add:*)",
+      "Bash(pnpm exec prisma:*)",
+      "Bash(pnpm approve-builds:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(Remove-Item:*)",
+      "Bash(npx prisma db push:*)",
+      "Bash(npx prisma db pull:*)",
+      "Bash(npx next build:*)",
+      "Bash(npm install:*)",
+      "Bash(pnpm run build)",
+      "Bash(git checkout:*)",
+      "Bash(timeout:*)",
+      "Bash(npm run build)",
+      "Bash(test:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npx prisma migrate:*)",
+      "Bash(npx prisma db execute:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

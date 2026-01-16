@@ -1,0 +1,26 @@
+# Development Dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies for Prisma and pnpm
+RUN apk add --no-cache libc6-compat
+RUN npm install -g pnpm
+
+# Copy package files
+COPY package.json pnpm-lock.yaml* ./
+
+# Install all dependencies
+RUN pnpm install
+
+# Generate Prisma Client
+RUN pnpm prisma generate
+
+# Copy application files
+COPY . .
+
+# Expose port
+EXPOSE 3000
+
+# Start development server
+CMD ["pnpm", "run", "dev"]

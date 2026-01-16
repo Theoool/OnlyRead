@@ -37,6 +37,7 @@ interface ConceptStore {
   updateConcept: (term: string, data: Partial<ConceptData>, id?: string) => Promise<void>
   getConcept: (term: string) => ConceptData | undefined
   importConcepts: (concepts: ConceptData[]) => Promise<void>
+  findRelatedConcepts: (text: string) => Promise<Array<{ id: string; term: string; similarity: number }>>
   clearError: () => void
 }
 
@@ -179,6 +180,34 @@ export const useConceptStore = create<ConceptStore>((set, get) => ({
         error: error.message || 'Failed to import concepts',
         loading: false,
       })
+    }
+  },
+
+  // Find related concepts using vector search
+  findRelatedConcepts: async (text) => {
+    try {
+      // 使用 GET 请求，语义更清晰
+      const params = new URLSearchParams({
+        text: text.substring(0, 500), // 限制文本长度
+        limit: '5',
+        threshold: '0.7',
+      });
+
+      const res = await fetch(`/api/concepts/related?${params}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to fetch related concepts');
+      }
+
+      const data = await res.json();
+      return data.related || [];
+    } catch (error) {
+      console.error('❌ Failed to find related concepts:', error);
+      return [];
     }
   },
 

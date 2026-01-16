@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # Next.js Application
+  # ============================================
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: anti-ai-reader-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - DIRECT_URL=${DIRECT_URL}
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - AI_MODEL_NAME=${AI_MODEL_NAME:-gpt-4o-mini}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    networks:
+      - anti-ai-reader-network
+
+  # ============================================
+  # Development Service (optional)
+  # ============================================
+  # Uncomment for local development with hot reload
+  # web-dev:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.dev
+  #   container_name: anti-ai-reader-dev
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - NODE_ENV=development
+  #     - DATABASE_URL=${DATABASE_URL}
+  #     - DIRECT_URL=${DIRECT_URL}
+  #     - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+  #     - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+  #     - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+  #     - OPENAI_API_KEY=${OPENAI_API_KEY}
+  #     - AI_MODEL_NAME=${AI_MODEL_NAME:-gpt-4o-mini}
+  #   volumes:
+  #     - .:/app
+  #     - /app/node_modules
+  #     - /app/.next
+  #   networks:
+  #     - anti-ai-reader-network
+  #   command: npm run dev
+
+networks:
+  anti-ai-reader-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

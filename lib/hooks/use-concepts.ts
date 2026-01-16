@@ -1,0 +1,77 @@
+'use client'
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useConceptStore } from '@/lib/store/useConceptStore'
+import { queryKeys } from './use-articles'
+
+/**
+ * 获取所有概念卡片（使用Zustand store + React Query缓存）
+ */
+export function useConcepts() {
+  const queryClient = useQueryClient()
+  const { concepts, loadConcepts, loading } = useConceptStore()
+
+  // 使用useQuery来管理加载状态和缓存
+  const query = useQuery({
+    queryKey: queryKeys.concepts,
+    queryFn: async () => {
+      await loadConcepts()
+      return concepts
+    },
+    staleTime: 1000 * 60 * 5, // 5分钟
+  })
+
+  return {
+    concepts: query.data || concepts,
+    loading: query.isLoading || loading,
+    error: query.error,
+    refetch: query.refetch,
+  }
+}
+
+/**
+ * 添加概念卡片
+ */
+export function useAddConcept() {
+  const { addConcept } = useConceptStore()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: addConcept,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.concepts })
+    },
+  })
+}
+
+/**
+ * 更新概念卡片
+ */
+export function useUpdateConcept() {
+  const { updateConcept } = useConceptStore()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (vars: { term: string; data: Parameters<typeof updateConcept>[1]; id?: string }) =>
+      updateConcept(vars.term, vars.data, vars.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.concepts })
+    },
+  })
+}
+
+/**
+ * 删除概念卡片
+ */
+export function useDeleteConcept() {
+  const { removeConcept } = useConceptStore()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (vars: { term: string; id?: string }) =>
+      removeConcept(vars.term, vars.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.concepts })
+    },
+  })
+}

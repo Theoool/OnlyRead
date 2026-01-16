@@ -3,6 +3,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Enable standalone output for Docker
   output: 'standalone',
+  
+  // Experimental config for large uploads
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '50mb',
+    },
+  },
 
   // Optimize for production
   reactStrictMode: true,

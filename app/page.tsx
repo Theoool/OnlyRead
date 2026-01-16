@@ -1,13 +1,12 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import * as articlesAPI from "@/lib/api/articles";
-import type { Article } from "@/lib/articles-legacy";
+import type { Article } from "@/lib/api/articles";
+import type { Collection } from "@/lib/core/reading/collections.service";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2,
   Link as LinkIcon,
   FileText,
-  Clock,
   ArrowRight,
   AlertCircle,
   History,
@@ -17,12 +16,23 @@ import {
   TrendingUp,
   Brain,
   Flame,
+  Book,
+  Library,
+  ChevronDown,
+  ChevronRight,
+  Upload,
+  Check,
+  Circle,
 } from "lucide-react";
 import { twMerge } from "tailwind-merge";
-import { useConceptStore } from "@/lib/store/useConceptStore";
+import { useConceptStore, ConceptData } from "@/lib/store/useConceptStore";
 import { useAuthStore } from "@/lib/store/useAuthStore";
 import { SearchBar } from "@/app/components/SearchBar";
 import { User, LogOut } from "lucide-react";
+import { useRouter } from 'next/navigation';
+import { useArticles, useSaveArticle } from "@/lib/hooks/use-articles";
+import { useCollections } from "@/lib/hooks/use-collections";
+import { ArticleListSkeleton } from "@/app/components/ui/skeleton";
 
 function formatRelative(ts: number) {
   const diff = Date.now() - ts;
@@ -44,16 +54,41 @@ function truncate(input: string, n = 20) {
 }
 
 export default function Home() {
-  const { isAuthenticated, user, logout, fetchSession } = useAuthStore();
+  const { isAuthenticated, user, logout, fetchSession, isLoading } = useAuthStore();
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [list, setList] = useState<Article[]>([]);
-  const [mounted, setMounted] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { concepts, loadConcepts } = useConceptStore();
+  const router = useRouter();
+  
+  // View Mode: 'articles' | 'collections'
+  const [viewMode, setViewMode] = useState<'articles' | 'collections'>('articles');
+  const [expandedCollectionId, setExpandedCollectionId] = useState<string | null>(null);
+  const [expandedCollections, setExpandedCollections] = useState<Map<string, any[]>>(new Map());
+
+  // React Query Hooks
+  const { data: articlesData = { articles: [] }, isLoading: isLoadingArticles, refetch: refetchArticles } = useArticles();
+  const { data: collections = [], isLoading: isLoadingCollections, refetch: refetchCollections } = useCollections();
+  const saveArticleMutation = useSaveArticle();
+
+  // Extract articles from response
+  const articles = articlesData.articles || [];
+
+  // Sort articles by lastRead
+  const sortedArticles = useMemo(() => {
+    return [...articles].sort((a, b) => (b.lastRead || 0) - (a.lastRead || 0));
+  }, [articles]);
+
+  // Display more articles or limit to 20
+  const [displayLimit, setDisplayLimit] = useState(20);
+  const displayedArticles = useMemo(() => sortedArticles.slice(0, displayLimit), [sortedArticles, displayLimit]);
+
+  const sortedCollections = useMemo(() => {
+    return [...collections].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  }, [collections]);
 
   // Quick stats state
   const [quickStats, setQuickStats] = useState<{
@@ -62,36 +97,32 @@ export default function Home() {
     totalConcepts: number;
   } | null>(null);
 
+  // Initial Data Load (Non-blocking)
   useEffect(() => {
-    const loadArticles = async () => {
-      // Fetch session first
-      await fetchSession();
-
-      try {
-        const articles = await articlesAPI.getArticles();
-        setList(
-          articles
-            .slice()
-            .sort((a: any, b: any) => (b.lastRead || 0) - (a.lastRead || 0))
-        );
-      } catch (error) {
-        console.error('Failed to load articles:', error);
-      } finally {
-        setMounted(true);
-        textareaRef.current?.focus();
-      }
-
-      // Fetch quick stats
-      fetchQuickStats();
+    const init = async () => {
+      // Fetch session in background
+      fetchSession();
 
       // Load concepts if authenticated
       if (isAuthenticated) {
         loadConcepts();
       }
     };
+    init();
+    
+    // Focus input on mount
+    textareaRef.current?.focus();
+    
+    // Fetch quick stats separately
+    fetchQuickStats();
+  }, [isAuthenticated]); // Re-run if auth state changes
 
-    loadArticles();
-  }, []);
+  // Load collection articles when expanded
+  useEffect(() => {
+    if (expandedCollectionId && !expandedCollections.has(expandedCollectionId)) {
+      handleOpenCollection(expandedCollectionId);
+    }
+  }, [expandedCollectionId]);
 
   const fetchQuickStats = async () => {
     try {
@@ -126,8 +157,22 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [value, loading]);
 
-  const recentFive = useMemo(() => list.slice(0, 20), [list]); // Show more history
+  const recentFive = useMemo(() => displayedArticles, [displayedArticles]);
   const isInputUrl = useMemo(() => isUrl(value), [value]);
+
+  // Build a map for efficient concept lookup by article ID
+  // This avoids O(n*m) complexity when filtering concepts for each article
+  const conceptsByArticle = useMemo(() => {
+    const map = new Map<string, ConceptData[]>();
+    Object.values(concepts).forEach(concept => {
+      if (concept.sourceArticleId) {
+        const existing = map.get(concept.sourceArticleId) || [];
+        existing.push(concept);
+        map.set(concept.sourceArticleId, existing);
+      }
+    });
+    return map;
+  }, [concepts]);
 
   async function handlePaste() {
     try {
@@ -141,25 +186,56 @@ export default function Home() {
     }
   }
 
-  function handleFile(file: File) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      if (content) {
-        const isMd = file.name.toLowerCase().endsWith(".md");
-        const article: Article = {
-          id: `file-${Date.now()}`,
-          title: file.name,
-          domain: "本地文件",
-          content: content,
-          progress: 0,
-          lastRead: Date.now(),
-          type: isMd ? 'markdown' : 'text'
-        };
-        updateList(article);
+  async function handleFile(file: File) {
+    setLoading(true);
+    setError("");
+    
+    try {
+      // 1. Check file type
+      const isEpub = file.name.toLowerCase().endsWith('.epub');
+      const isPdf = file.name.toLowerCase().endsWith('.pdf');
+      const isMd = file.name.toLowerCase().endsWith('.md');
+      const isTxt = file.name.toLowerCase().endsWith('.txt');
+
+      if (!isEpub && !isPdf && !isMd && !isTxt) {
+        throw new Error("Unsupported file format. Please upload .epub, .pdf, .md, or .txt");
       }
-    };
-    reader.readAsText(file);
+
+      // 2. Prepare FormData
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // 3. Upload
+      const res = await fetch('/api/import/file', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Upload failed');
+      }
+
+      const data = await res.json();
+      
+      // 4. Refresh data
+      await Promise.all([refetchArticles(), refetchCollections()]);
+
+      // 5. Navigate or Feedback
+      if (data.data.collection) {
+        setViewMode('collections');
+        // Optional: expand the new collection
+        // setExpandedCollectionId(data.data.collection.id);
+      } else {
+        setViewMode('articles');
+      }
+      
+    } catch (err: any) {
+      console.error('File upload error:', err);
+      setError(err.message || "File upload failed");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function onDragOver(e: React.DragEvent) {
@@ -198,33 +274,24 @@ export default function Home() {
     setError("");
     setLoading(true);
 
-    // Artificial delay for feel
-    await new Promise(r => setTimeout(r, 300));
-
     try {
       if (isUrl(input)) {
-        const res = await fetch("/api/fetch", {
+        const res = await fetch("/api/import/url", {
           method: "POST",
-          credentials: 'include',
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url: input }),
         });
+        
         if (!res.ok) {
-          throw new Error("不支持");
+          const errData = await res.json();
+          throw new Error(errData.error || "Import failed");
         }
-        const data = await res.json();
-        const article: Article = {
-          id: data.id,
-          title: data.title || input,
-          domain: data.domain || "未知来源",
-          url: input,
-          content: data.content,
-          progress: 0,
-          lastRead: Date.now(),
-          type: data.type || 'text',
-        };
-        updateList(article);
+        
+        await refetchArticles();
+        setViewMode('articles');
+        setValue("");
       } else {
+        // Text Paste
         // Simple Markdown detection
         const isMd = /^(#|\- |\* |```|\[.+\]\(.+\)|> )/m.test(input);
         const article: Article = {
@@ -236,25 +303,21 @@ export default function Home() {
           lastRead: Date.now(),
           type: isMd ? 'markdown' : 'text',
         };
-        updateList(article);
+        await saveArticle(article);
+        await refetchArticles();
+        setValue("");
       }
-      setValue("");
-    } catch {
-      setError("该网站不支持，请手动复制粘贴文本");
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "该网站不支持，请手动复制粘贴文本");
     } finally {
       setLoading(false);
     }
   }
 
-  async function updateList(article: Article) {
+  async function saveArticle(article: Article) {
     try {
-      await articlesAPI.saveArticle(article);
-      const articles = await articlesAPI.getArticles();
-      setList(
-        articles
-          .slice()
-          .sort((a: any, b: any) => (b.lastRead || 0) - (a.lastRead || 0))
-      );
+      await saveArticleMutation.mutateAsync(article);
     } catch (error) {
       console.error('Failed to save article:', error);
       setError('保存失败，请重试');
@@ -263,10 +326,34 @@ export default function Home() {
 
   function onClickItem(a: Article) {
     if (loading) return;
-    window.location.href = `/read?id=${a.id}`;
+    router.push(`/read?id=${a.id}`);
   }
 
-  if (!mounted) return null;
+  async function handleOpenCollection(collectionId: string) {
+    try {
+      setLoading(true);
+      setError("");
+      const res = await fetch(`/api/collections/${collectionId}`);
+      if (!res.ok) throw new Error("Failed to load collection");
+      const data = await res.json();
+
+      if (!data.collection) throw new Error("Collection data missing");
+
+      const articles = data.collection.articles;
+
+      if (articles && articles.length > 0) {
+        // Store articles in state
+        setExpandedCollections(prev => new Map(prev).set(collectionId, articles));
+      } else {
+        setError("This book is empty");
+      }
+    } catch (e) {
+      console.error(e);
+      setError("Failed to open book");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div className="h-screen w-full flex flex-col bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-50 font-sans overflow-hidden">
@@ -298,7 +385,7 @@ export default function Home() {
           >
             <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
               <span className="w-2 h-2 bg-black dark:bg-white rounded-full inline-block"/>
-              数字忏悔室
+              阅读
             </h1>
 
             {/* Auth UI */}
@@ -318,8 +405,12 @@ export default function Home() {
                     </span>
                   </div>
                   <button
-                    onClick={() => logout()}
-                    className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                    onClick={async () => {
+                      await logout();
+                      window.location.href = '/';
+                    }}
+                    disabled={isLoading}
+                    className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50"
                     title="Logout"
                   >
                     <LogOut className="w-4 h-4" />
@@ -495,9 +586,27 @@ export default function Home() {
         {/* Right Panel: History Stream */}
         <section className="w-full md:w-1/2 lg:w-[45%] bg-zinc-50 dark:bg-[#050505] flex flex-col relative">
           <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/80 dark:bg-[#050505]/80 backdrop-blur z-10">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-zinc-400">
-              <History className="w-3 h-3" />
-              Log Stream
+            <div className="flex items-center gap-4">
+               <button 
+                  onClick={() => setViewMode('articles')}
+                  className={twMerge(
+                    "flex items-center gap-2 text-xs font-bold uppercase tracking-widest transition-colors",
+                    viewMode === 'articles' ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 hover:text-zinc-600"
+                  )}
+               >
+                 <History className="w-3 h-3" />
+                 Articles
+               </button>
+               <button 
+                  onClick={() => setViewMode('collections')}
+                  className={twMerge(
+                    "flex items-center gap-2 text-xs font-bold uppercase tracking-widest transition-colors",
+                    viewMode === 'collections' ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 hover:text-zinc-600"
+                  )}
+               >
+                 <Library className="w-3 h-3" />
+                 Books
+               </button>
             </div>
             
             <div className="flex items-center gap-4">
@@ -520,91 +629,222 @@ export default function Home() {
                 </a>
 
                 <span className="text-[10px] font-mono text-zinc-400 border-l border-zinc-200 dark:border-zinc-800 pl-4">
-                    {list.length} RECORDS
+                    {viewMode === 'articles' ? articles.length : collections.length} RECORDS
                 </span>
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar relative">
-            <AnimatePresence mode="popLayout" initial={false}>
-              {recentFive.map((article, i) => {
-                // Get concepts for this article
-                const articleConcepts = Object.values(concepts).filter(c => c.sourceArticleId === article.id);
-                
-                return (
-                <motion.button
-                  layout
-                  key={article.id}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  transition={{ delay: i * 0.05 }}
-                  onClick={() => onClickItem(article)}
-                  disabled={loading}
-                  className="w-full group text-left p-4 rounded-lg bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all disabled:opacity-50 relative overflow-hidden"
-                >
-                  <div className="flex justify-between items-start gap-4 relative z-10">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[10px] font-mono text-zinc-400 uppercase">
-                          {article.domain}
-                        </span>
-                        <span className="text-[10px] text-zinc-300 dark:text-zinc-700">•</span>
-                        <span className="text-[10px] font-mono text-zinc-400">
-                          {formatRelative(article.lastRead)}
-                        </span>
-                      </div>
-                      <h3 className="font-medium text-zinc-900 dark:text-zinc-100 truncate text-sm md:text-base mb-2">
-                        {article.title}
-                      </h3>
+            {viewMode === 'articles' ? (
+                isLoadingArticles ? (
+                  <ArticleListSkeleton />
+                ) : (
+                  <AnimatePresence mode="popLayout" initial={false}>
+                    {recentFive.map((article, i) => {
+                      // Get concepts for this article using O(1) lookup
+                      const articleConcepts = conceptsByArticle.get(article.id) || [];
                       
-                      {/* Concept Pills */}
-                      {articleConcepts.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                              {articleConcepts.slice(0, 3).map((c, idx) => (
-                                  <span key={idx} className="text-[10px] px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded border border-purple-100 dark:border-purple-900/30 truncate max-w-[100px]">
-                                      {c.term}
-                                  </span>
-                              ))}
-                              {articleConcepts.length > 3 && (
-                                  <span className="text-[10px] px-1.5 py-0.5 text-zinc-400">+{articleConcepts.length - 3}</span>
-                              )}
+                      return (
+                      <motion.button
+                        layout
+                        key={article.id}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        transition={{ delay: i * 0.05 }}
+                        onClick={() => onClickItem(article)}
+                        disabled={loading}
+                        className="w-full group text-left p-4 rounded-lg bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all disabled:opacity-50 relative overflow-hidden"
+                      >
+                        <div className="flex justify-between items-start gap-4 relative z-10">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-[10px] font-mono text-zinc-400 uppercase">
+                                {article.domain}
+                              </span>
+                              <span className="text-[10px] text-zinc-300 dark:text-zinc-700">•</span>
+                              <span className="text-[10px] font-mono text-zinc-400">
+                                {formatRelative(article.lastRead)}
+                              </span>
+                            </div>
+                            <h3 className="font-medium text-zinc-900 dark:text-zinc-100 truncate text-sm md:text-base mb-2">
+                              {article.title}
+                            </h3>
+                            
+                            {/* Concept Pills */}
+                            {articleConcepts.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {articleConcepts.slice(0, 3).map((c, idx) => (
+                                        <span key={idx} className="text-[10px] px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded border border-purple-100 dark:border-purple-900/30 truncate max-w-[100px]">
+                                            {c.term}
+                                        </span>
+                                    ))}
+                                    {articleConcepts.length > 3 && (
+                                        <span className="text-[10px] px-1.5 py-0.5 text-zinc-400">+{articleConcepts.length - 3}</span>
+                                    )}
+                                </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex flex-col items-end justify-between h-full">
+                            {article.domain === "手动粘贴" ? (
+                              <FileText className="w-4 h-4 text-zinc-300 dark:text-zinc-700" />
+                            ) : (
+                              <LinkIcon className="w-4 h-4 text-zinc-300 dark:text-zinc-700" />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Progress Bar Background */}
+                        {article.progress > 0 && (
+                          <div className="absolute bottom-0 left-0 h-1 bg-zinc-100 dark:bg-zinc-900 w-full">
+                             <motion.div 
+                              className="h-full bg-zinc-900 dark:bg-zinc-100"
+                              initial={{ width: 0 }}
+                              animate={{ width: `${article.progress}%` }}
+                            />
+                          </div>
+                        )}
+                      </motion.button>
+                    )})}
+                    
+                    {recentFive.length === 0 && (
+                      <div className="h-full flex flex-col items-center justify-center text-zinc-400 space-y-4 opacity-50 mt-20">
+                        <div className="w-12 h-12 rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center">
+                          <ArrowRight className="w-5 h-5" />
+                        </div>
+                        <p className="text-xs font-mono">WAITING FOR INPUT...</p>
+                      </div>
+                    )}
+                  </AnimatePresence>
+                )
+            ) : (
+              // Collections View
+              isLoadingCollections ? (
+                  <ArticleListSkeleton />
+              ) : (
+                  <AnimatePresence mode="popLayout" initial={false}>
+                      {sortedCollections.map((collection, i) => (
+                          <motion.div
+                              layout
+                              key={collection.id}
+                              initial={{ opacity: 0, x: 20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: 20 }}
+                              transition={{ delay: i * 0.05 }}
+                              className="w-full group text-left p-4 rounded-lg bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all relative overflow-hidden"
+                          >
+                              <div
+                                className="flex justify-between items-start cursor-pointer"
+                                onClick={() => {
+                                  const newExpandedId = expandedCollectionId === collection.id ? null : collection.id;
+                                  setExpandedCollectionId(newExpandedId);
+                                }}
+                              >
+                                  <div className="flex items-center gap-3">
+                                      <div className="p-2 bg-zinc-100 dark:bg-zinc-900 rounded text-zinc-500">
+                                          <Book className="w-4 h-4" />
+                                      </div>
+                                      <div>
+                                          <h3 className="font-medium text-zinc-900 dark:text-zinc-100 text-sm md:text-base">
+                                              {collection.title}
+                                          </h3>
+                                          <p className="text-xs text-zinc-500 mt-1">
+                                              {collection._count?.articles || 0} chapters • {formatRelative(new Date(collection.updatedAt).getTime())}
+                                          </p>
+                                      </div>
+                                  </div>
+                                  <ChevronDown className={twMerge(
+                                      "w-4 h-4 text-zinc-400 transition-transform",
+                                      expandedCollectionId === collection.id ? "rotate-180" : ""
+                                  )} />
+                              </div>
+
+                              <AnimatePresence>
+                                  {expandedCollectionId === collection.id && (
+                                      <motion.div
+                                          initial={{ height: 0, opacity: 0 }}
+                                          animate={{ height: "auto", opacity: 1 }}
+                                          exit={{ height: 0, opacity: 0 }}
+                                          className="overflow-hidden"
+                                      >
+                                          <div className="mt-4 pl-4 border-l border-zinc-200 dark:border-zinc-800 space-y-1">
+                                              {/* Show chapter list */}
+                                              {!expandedCollections.has(collection.id) ? (
+                                                  /* Loading state */
+                                                  <div className="flex justify-center py-4">
+                                                    <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
+                                                  </div>
+                                              ) : (
+                                                  expandedCollections.get(collection.id)!.map((article: any, idx: number) => (
+                                                      <button
+                                                          key={article.id}
+                                                          onClick={(e) => {
+                                                              e.stopPropagation();
+                                                              router.push(`/read?id=${article.id}`);
+                                                          }}
+                                                          className="w-full text-left group py-2 px-3 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-between"
+                                                      >
+                                                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                              <span className="text-[10px] font-mono text-zinc-400">
+                                                                  {String(idx + 1).padStart(2, '0')}
+                                                              </span>
+                                                              <span className="text-sm text-zinc-700 dark:text-zinc-300 truncate flex-1">
+                                                                  {article.title}
+                                                              </span>
+                                                              {article.progress > 0 && (
+                                                                  <span className="text-[10px] text-zinc-400">
+                                                                      {article.progress}%
+                                                                  </span>
+                                                              )}
+                                                          </div>
+                                                          {article.progress === 100 ? (
+                                                              <Check className="w-3 h-3 text-green-500 flex-shrink-0" />
+                                                          ) : (
+                                                              <ChevronRight className="w-3 h-3 text-zinc-400 flex-shrink-0" />
+                                                          )}
+                                                      </button>
+                                                  ))
+                                              )}
+
+                                              {/* Error state */}
+                                              {error && expandedCollectionId === collection.id && (
+                                                <div className="text-xs text-red-500 text-center py-2">
+                                                  {error}
+                                                </div>
+                                              )}
+                                          </div>
+                                      </motion.div>
+                                  )}
+                              </AnimatePresence>
+                          </motion.div>
+                      ))}
+                      
+                      {sortedCollections.length === 0 && (
+                          <div className="h-full flex flex-col items-center justify-center text-zinc-400 space-y-4 opacity-50 mt-20">
+                              <div className="w-12 h-12 rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center">
+                                  <Book className="w-5 h-5" />
+                              </div>
+                              <p className="text-xs font-mono">NO BOOKS FOUND</p>
                           </div>
                       )}
-                    </div>
-                    
-                    <div className="flex flex-col items-end justify-between h-full">
-                      {article.domain === "手动粘贴" ? (
-                        <FileText className="w-4 h-4 text-zinc-300 dark:text-zinc-700" />
-                      ) : (
-                        <LinkIcon className="w-4 h-4 text-zinc-300 dark:text-zinc-700" />
-                      )}
-                    </div>
-                  </div>
+                  </AnimatePresence>
+              )
+            )}
 
-                  {/* Progress Bar Background */}
-                  {article.progress > 0 && (
-                    <div className="absolute bottom-0 left-0 h-1 bg-zinc-100 dark:bg-zinc-900 w-full">
-                       <motion.div 
-                        className="h-full bg-zinc-900 dark:bg-zinc-100"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${article.progress}%` }}
-                      />
-                    </div>
-                  )}
-                </motion.button>
-              )})}
-              
-              {recentFive.length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center text-zinc-400 space-y-4 opacity-50 mt-20">
-                  <div className="w-12 h-12 rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center">
-                    <ArrowRight className="w-5 h-5" />
-                  </div>
-                  <p className="text-xs font-mono">WAITING FOR INPUT...</p>
-                </div>
-              )}
-            </AnimatePresence>
-            
+            {/* Load More Button */}
+            {viewMode === 'articles' && displayedArticles.length < sortedArticles.length && (
+              <div className="px-4 pb-4">
+                <button
+                  onClick={() => setDisplayLimit(prev => prev + 20)}
+                  className="w-full py-3 px-4 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors text-sm font-medium text-zinc-600 dark:text-zinc-400 flex items-center justify-center gap-2"
+                >
+                  加载更多 ({sortedArticles.length - displayedArticles.length} 篇)
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             <div className="h-20" /> {/* Bottom spacer */}
           </div>
         </section>

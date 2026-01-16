@@ -35,8 +35,8 @@ export default function OptionsPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const loadedArticles = await articlesAPI.getArticles();
-        setArticles(loadedArticles);
+        const result = await articlesAPI.getArticles();
+        setArticles(result.articles);
       } catch (error) {
         console.error('Failed to load articles:', error);
       }

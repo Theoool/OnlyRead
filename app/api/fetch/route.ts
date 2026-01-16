@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
+import { ContentExtractor } from "@/lib/content-extractor";
+import { extractWithAdapter } from "@/lib/site-adapters";
 
 export async function POST(req: Request) {
   try {
@@ -31,7 +33,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Resolve relative URLs
     const baseUrl = new URL(url);
     html = html.replace(/(src|href)=["']([^"']+)["']/gi, (match, attr, path) => {
       try {
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
     });
 
     const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
-    const title = (titleMatch?.[1] || url).trim();
+    const fallbackTitle = (titleMatch?.[1] || url).trim();
     let domain = "";
     try {
       domain = new URL(url).hostname;
@@ -51,32 +52,60 @@ export async function POST(req: Request) {
       domain = "未知来源";
     }
     
-    // Use Turndown to convert HTML to Markdown
-    const turndownService = new TurndownService({
-      headingStyle: 'atx',
-      codeBlockStyle: 'fenced',
-      hr: '---',
-      bulletListMarker: '-',
-    });
-    
-    // Use GFM plugin
-    turndownService.use(gfm);
-
-    // Remove scripts, styles, and meta tags that might interfere
-    const cleanHtml = html
-      .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
-      .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gim, "")
-      .replace(/<noscript\b[^>]*>([\s\S]*?)<\/noscript>/gim, "")
-      .replace(/<header\b[^>]*>([\s\S]*?)<\/header>/gim, "") 
-      .replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/gim, "") 
-      .replace(/<nav\b[^>]*>([\s\S]*?)<\/nav>/gim, "")
-      .replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "");
-
-    const markdown = turndownService.turndown(cleanHtml);
-
     const id = `url-${Date.now()}`;
-    // Return as 'markdown' type content
-    return NextResponse.json({ id, title, domain, url, content: markdown, type: 'markdown' });
+    try {
+      const extractor = new ContentExtractor();
+      const adapted = extractWithAdapter(html, url);
+
+      const extracted = adapted.content && adapted.content.trim().length > 200
+        ? extractor.extractFromHtml(
+            `<!doctype html><html><head><meta charset="utf-8"></head><body>${adapted.content}</body></html>`,
+            url,
+            { removeRecommendations: true }
+          )
+        : extractor.extractFromHtml(html, url, { removeRecommendations: true });
+
+      const title = (adapted.title || extracted.title || fallbackTitle).trim() || fallbackTitle;
+
+      return NextResponse.json({
+        id,
+        title,
+        domain,
+        url,
+        content: extracted.content,
+        type: extracted.type,
+        metadata: extracted.metadata,
+        adapterName: adapted.adapterName,
+      });
+    } catch {
+      const turndownService = new TurndownService({
+        headingStyle: "atx",
+        codeBlockStyle: "fenced",
+        hr: "---",
+        bulletListMarker: "-",
+      });
+      turndownService.use(gfm);
+
+      const cleanHtml = html
+        .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
+        .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gim, "")
+        .replace(/<noscript\b[^>]*>([\s\S]*?)<\/noscript>/gim, "")
+        .replace(/<header\b[^>]*>([\s\S]*?)<\/header>/gim, "")
+        .replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/gim, "")
+        .replace(/<nav\b[^>]*>([\s\S]*?)<\/nav>/gim, "")
+        .replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "");
+
+      const markdown = turndownService.turndown(cleanHtml);
+
+      return NextResponse.json({
+        id,
+        title: fallbackTitle,
+        domain,
+        url,
+        content: markdown,
+        type: "markdown",
+      });
+    }
   } catch (err) {
     return NextResponse.json(
       { error: "服务异常" },
