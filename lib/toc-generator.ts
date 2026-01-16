@@ -151,5 +151,10 @@ export function generateSimpleTOC(markdown: string): Array<{
   flattenLevel?: number;
 }> {
   const { items } = generateTOC(markdown);
-  return flattenTOC(items);
+  return flattenTOC(items).map(item => ({
+    title: item.title,
+    level: item.level,
+    index: item.headingIndex,
+    flattenLevel: item.flattenLevel
+  }));
 }

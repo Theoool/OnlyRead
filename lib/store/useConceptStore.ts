@@ -5,7 +5,7 @@
  */
 
 import { create } from 'zustand'
-import * as conceptsAPI from '@/lib/api/concepts'
+import * as conceptsAPI from '@/lib/core/learning/concepts.service'
 
 export interface ConceptData {
   id?: string
@@ -14,6 +14,10 @@ export interface ConceptData {
   myExample: string
   myConnection?: string
   confidence: number
+  aiDefinition?: string
+  aiExample?: string
+  aiRelatedConcepts?: string[]
+  isAiCollected?: boolean
   createdAt: number
   sourceArticleId?: string
   lastReviewedAt?: number
@@ -23,6 +27,9 @@ export interface ConceptData {
   interval?: number
   tags?: string[]
 }
+
+// Export Concept as an alias for ConceptData for compatibility
+export type Concept = ConceptData;
 
 interface ConceptStore {
   // State

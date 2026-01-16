@@ -7,6 +7,24 @@ export interface Collection {
   description?: string;
   cover?: string;
   type: 'SERIES' | 'BOOK' | 'COURSE';
+
+  // ✅ 新增: Book元数据
+  author?: string | null;
+  language?: string | null;
+  isbn?: string | null;
+
+  // ✅ 新增: 进度聚合
+  totalChapters?: number;
+  completedChapters?: number;
+  readingProgress?: number;
+
+  // ✅ 新增: 统计
+  totalWords?: number | null;
+  estimatedReadTime?: number | null;
+
+  // ✅ 新增: 用户偏好
+  userPreferences?: any;
+
   createdAt: string;
   updatedAt: string;
   articles?: Article[];

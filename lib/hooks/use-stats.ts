@@ -40,22 +40,27 @@ interface HeatmapData {
   maxReviews: number
 }
 
+import { useReadingStats } from './use-reading-stats'
+
 /**
  * 获取学习统计数据
+ * @deprecated Use useReadingStats instead
  */
-export function useLearningStats(period: string = 'all') {
-  return useQuery({
-    queryKey: ['stats', 'learning', period],
-    queryFn: async () => {
-      const res = await fetch(`/api/stats/learning?period=${period}`, {
-        credentials: 'include',
-      })
-      if (!res.ok) throw new Error('Failed to fetch learning stats')
-      return res.json() as Promise<LearningStats>
-    },
-    staleTime: 1000 * 60 * 5, // 5分钟
-    retry: 1,
-  })
+export function useLearningStats(period: '7d' | '30d' | '90d' | 'all' = '7d') {
+  const { data, ...rest } = useReadingStats(period);
+  
+  const learningStats: LearningStats | undefined = data ? {
+    totalReadingTime: data.totalReadingTime * 1000, // Convert seconds to ms to match old API
+    totalConcepts: data.periodConceptsCreated, // Note: this might be different semantics
+    totalArticles: data.totalArticles,
+    completedArticles: data.completedArticlesInPeriod || 0,
+    totalReviews: 0, // Not available in reading stats
+    avgSessionDuration: 0, // Not available
+    currentStreak: data.currentStreak,
+    longestStreak: data.longestStreak
+  } : undefined;
+
+  return { data: learningStats, ...rest };
 }
 
 /**

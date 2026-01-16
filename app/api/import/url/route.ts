@@ -35,18 +35,33 @@ export async function POST(req: Request) {
 
     const article = await prisma.article.create({
       data: {
-        id: createId(),
+        
         title: extracted.title,
-        content: extracted.content,
         url: url,
         domain: domain,
         userId: user.id,
         collectionId: collectionId || null,
         type: 'markdown',
+        // Vertical Partitioning
+        body: {
+          create: {
+            content: extracted.content,
+            markdown: extracted.content,
+          }
+        }
+      },
+      include: {
+        body: true // Return content if needed
       }
     });
 
-    return NextResponse.json({ data: article });
+    const { body: articleBody, ...rest } = article;
+    return NextResponse.json({ 
+      data: {
+        ...rest,
+        content: articleBody?.content
+      }
+    });
 
   } catch (error: any) {
     console.error('Import URL error:', error);

@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/infrastructure/database/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 

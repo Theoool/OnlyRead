@@ -35,7 +35,7 @@ export function createErrorResponse(error: unknown) {
       {
         error: error.message,
         code: error.code,
-        details: (error as ValidationError).errors,
+        details: error.details,
       },
       { status: error.statusCode }
     );

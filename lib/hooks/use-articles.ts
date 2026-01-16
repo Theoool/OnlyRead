@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query'
-import * as articlesAPI from '@/lib/api/articles'
+import * as articlesAPI from '@/lib/core/reading/articles.service'
 
 // Query Keys
 export const queryKeys = {

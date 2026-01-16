@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/infrastructure/database/prisma'
 import { NextResponse } from 'next/server'
 
 // GET - Fetch concept mastery distribution

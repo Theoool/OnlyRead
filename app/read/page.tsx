@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useMemo, Suspense, Children, memo } from "
 import { useSearchParams, useRouter } from "next/navigation";
 
 import { splitMarkdownBlocks, splitSentences } from "@/lib/text-processing";
-import { recordSession } from "@/lib/stats";
+import { StatsService } from "@/lib/core/reading/stats.service";
 import { motion, AnimatePresence } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 import { Check, BookOpen, Loader2, Image as ImageIcon, EyeOff, Eye, List, ChevronLeft, ChevronRight } from "lucide-react";
@@ -18,6 +18,9 @@ import { useConceptStore, ConceptData } from "@/lib/store/useConceptStore";
 import { useArticle, useUpdateArticleProgress } from "@/lib/hooks";
 import { getCollection, Collection } from "@/lib/core/reading/collections.service";
 import { RelatedConcepts } from "../components/RelatedConcepts";
+import { BookInfoBar } from "@/app/components/book/BookInfoBar";
+import { ChapterNavigator } from "@/app/components/book/ChapterNavigator";
+import { ChapterListSidebar } from "@/app/components/book/ChapterListSidebar";
 
 
 function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
@@ -155,51 +158,43 @@ function ReadContent() {
   const [collection, setCollection] = useState<Collection | null>(null);
   const [tocMode, setTocMode] = useState<'chapters' | 'headings'>('headings');
 
-  // Calculate current chapter position in book
-  const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
-  const [totalChapters, setTotalChapters] = useState(0);
-  const [bookProgress, setBookProgress] = useState(0);
-
   useEffect(() => {
     async function fetchNavigation() {
       if (article?.collectionId) {
-        console.log('[DEBUG] Article belongs to collection:', article.collectionId);
         try {
-          const col = await getCollection(article.collectionId!);
-          console.log('[DEBUG] Collection data:', col);
-          if (col) {
-             setCollection(col);
-             // Default to chapters mode if it's a book/collection
-             setTocMode('chapters');
-
-             if (col.articles) {
-                const sorted = col.articles.sort((a, b) => (a.order || 0) - (b.order || 0));
-                const idx = sorted.findIndex(a => a.id === article.id);
-                console.log('[DEBUG] Article index in collection:', idx, 'Total:', sorted.length);
-                if (idx >= 0) {
-                  setCurrentChapterIndex(idx + 1);
-                  setTotalChapters(sorted.length);
-
-                  // Calculate overall book progress
-                  const completedChapters = sorted.filter(a => (a.progress || 0) >= 99).length;
-                  setBookProgress(Math.round((completedChapters / sorted.length) * 100));
-                  console.log('[DEBUG] Book progress:', bookProgress, 'Completed chapters:', completedChapters);
-
-                  if (idx > 0) setPrevArticleId(sorted[idx - 1].id);
-                  if (idx < sorted.length - 1) setNextArticleId(sorted[idx + 1].id);
-                  console.log('[DEBUG] Prev article:', prevArticleId, 'Next article:', nextArticleId);
-                }
-             }
+          // Use the dedicated navigation API
+          const res = await fetch(`/api/collections/${article.id}/navigation`);
+          if (res.ok) {
+            const data = await res.json();
+            const nav = data.data.navigation;
+            
+            if (nav.collection) {
+              setCollection(nav.collection);
+              setTocMode('chapters');
+            }
+            
+            if (nav.prev) setPrevArticleId(nav.prev.id);
+            if (nav.next) setNextArticleId(nav.next.id);
+          } else {
+            // Fallback to old method if API fails
+            const col = await getCollection(article.collectionId!);
+            if (col) {
+               setCollection(col);
+               setTocMode('chapters');
+               
+               if (col.articles) {
+                  const sorted = col.articles.sort((a, b) => (a.order || 0) - (b.order || 0));
+                  const idx = sorted.findIndex(a => a.id === article.id);
+                  if (idx >= 0) {
+                    if (idx > 0) setPrevArticleId(sorted[idx - 1].id);
+                    if (idx < sorted.length - 1) setNextArticleId(sorted[idx + 1].id);
+                  }
+               }
+            }
           }
         } catch (e) {
           console.error("Failed to fetch collection nav", e);
         }
-      } else {
-        // Reset if not a collection article
-        console.log('[DEBUG] Article is not part of a collection');
-        setCurrentChapterIndex(0);
-        setTotalChapters(0);
-        setBookProgress(0);
       }
     }
     fetchNavigation();
@@ -295,14 +290,6 @@ function ReadContent() {
   // 文章加载后初始化句子和进度
   useEffect(() => {
     if (article) {
-      console.log('[DEBUG] Article loaded:', {
-        id: article.id,
-        title: article.title,
-        collectionId: article.collectionId,
-        order: article.order,
-        progress: article.progress
-      });
-
       const s = article.type === 'markdown'
         ? splitMarkdownBlocks(article.content || "")
         : splitSentences(article.content || "");
@@ -432,12 +419,12 @@ function ReadContent() {
             lastRead: Date.now(),
           });
 
-          recordSession({
-            articleId: article.id,
-            startTime: sessionStartTime.current,
-            endTime: Date.now(),
-            duration: Date.now() - sessionStartTime.current
-          });
+          // recordSession({
+          //   articleId: article.id,
+          //   startTime: sessionStartTime.current,
+          //   endTime: Date.now(),
+          //   duration: Date.now() - sessionStartTime.current
+          // });
         }
         router.replace("/");
         return;
@@ -486,12 +473,14 @@ function ReadContent() {
               lastRead: Date.now(),
             });
 
+            /*
             recordSession({
               articleId: article.id,
               startTime: sessionStartTime.current,
               endTime: Date.now(),
               duration: Date.now() - sessionStartTime.current
             });
+            */
           }
           setIsFinished(true);
         }
@@ -507,44 +496,6 @@ function ReadContent() {
 
   const [isFinished, setIsFinished] = useState(false);
   const [isTocOpen, setIsTocOpen] = useState(false);
-
-  // Auto-advance countdown state
-  const [countdown, setCountdown] = useState(5);
-  const [autoAdvance, setAutoAdvance] = useState(false);
-
-  useEffect(() => {
-    let timer: NodeJS.Timeout | null = null;
-
-    if (isFinished && nextArticleId && autoAdvance) {
-      // Start countdown
-      timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            // Time's up - navigate to next chapter
-            if (timer) clearInterval(timer);
-            router.replace(`/read?id=${nextArticleId}`);
-            return 5;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [isFinished, autoAdvance, nextArticleId, router]);
-
-  // Reset countdown when modal opens/closes
-  useEffect(() => {
-    if (isFinished && nextArticleId) {
-      setCountdown(5);
-      setAutoAdvance(true);
-    } else {
-      setCountdown(5);
-      setAutoAdvance(false);
-    }
-  }, [isFinished, nextArticleId]);
 
   const tocItems = useMemo(() => {
     if (article?.type !== "markdown") return [];
@@ -632,202 +583,203 @@ function ReadContent() {
         style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}
       />
 
-      {/* Floating Header */}
-      <header className="fixed top-0 left-0 right-0 flex flex-col items-center z-50 pointer-events-none">
-        {/* Book Info Bar - Only show when reading a collection article */}
-       
-
-        {/* Article Header */}
-        <div className={twMerge(
-          "w-full h-15 flex items-center justify-between px-6 md:px-12",
-          collection ? "border-b border-zinc-200/50 dark:border-zinc-800/50" : ""
-        )}>
-          <motion.div
+      {/* Conditional Header: BookInfoBar or Default Header */}
+      {collection ? (
+        <BookInfoBar
+          collection={{
+            id: collection.id,
+            title: collection.title,
+            author: collection.author,
+            totalChapters: collection.totalChapters,
+            completedChapters: collection.completedChapters,
+            readingProgress: collection.readingProgress,
+          }}
+          article={{
+            id: article.id,
+            title: article.title,
+            progress: progress,
+          }}
+          currentChapter={article.order || 1}
+          totalChapters={collection.totalChapters || 1}
+          bookProgress={collection.readingProgress || 0}
+        />
+      ) : (
+        /* Floating Header (Default) */
+        <header className="fixed top-0 left-0 right-0 h-[60px] flex items-center justify-between px-6 md:px-12 z-50 pointer-events-none">
+          <motion.div 
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center gap-3 bg-white/80 dark:bg-black/80 backdrop-blur-md px-4 py-2 rounded-full shadow-sm border border-zinc-200/50 dark:border-zinc-800/50"
           >
-            {!collection && <BookOpen className="w-3 h-3 text-zinc-400" />}
+            <BookOpen className="w-3 h-3 text-zinc-400" />
             <h1 className="text-xs font-medium truncate max-w-[200px] opacity-80">
               {article.title}
             </h1>
           </motion.div>
 
           <div className="flex items-center gap-3">
-            <motion.button
+              <motion.button
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                onClick={() => {
+                  if (tocItems.length) setIsTocOpen((v) => !v);
+                }}
+                className={twMerge(
+                  "pointer-events-auto flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-2 rounded-full border border-zinc-200/50 dark:border-zinc-800/50 transition-colors",
+                  tocItems.length ? "hover:bg-white dark:hover:bg-zinc-950" : "opacity-40 cursor-not-allowed"
+                )}
+                type="button"
+              >
+                <List className="w-3 h-3 text-zinc-400" />
+                <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
+                  目录
+                </span>
+              </motion.button>
+              {/* Concept HUD */}
+              <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+              >
+                  <ConceptHud 
+                      cards={visibleCards} 
+                      onTermClick={(term) => {
+                          const saved = concepts[term];
+                          if (saved) {
+                              // Center of screen roughly
+                              setActiveCard({
+                                  x: window.innerWidth / 2 - 140, // 280px width / 2
+                                  y: window.innerHeight / 2 - 100,
+                                  term,
+                                  savedData: saved
+                              });
+                          }
+                      }}
+                  />
+              </motion.div>
+
+              <motion.div 
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 }}
-              onClick={() => {
-                if (tocItems.length || collection) setIsTocOpen((v) => !v);
-              }}
+              className="flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-2 rounded-full border border-zinc-200/50 dark:border-zinc-800/50"
+              >
+              <span className="text-[10px] font-mono text-zinc-400">
+                  {Math.round(progress)}%
+              </span>
+              <div className="w-12 h-1 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                  <motion.div
+                  className="h-full bg-zinc-900 dark:bg-zinc-100"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.5, ease: "circOut" }}
+                  />
+              </div>
+              </motion.div>
+          </div>
+        </header>
+      )}
+
+      {/* Navigation Buttons (Book Mode) */}
+      <ChapterNavigator 
+        prevArticleId={prevArticleId}
+        nextArticleId={nextArticleId}
+      />
+
+      {/* Conditional Sidebar: Chapter List or TOC */}
+      <AnimatePresence>
+        {isTocOpen && (
+          collection && tocMode === 'chapters' ? (
+            <ChapterListSidebar
+              collection={collection}
+              currentArticleId={article.id}
+              isOpen={isTocOpen}
+              onClose={() => setIsTocOpen(false)}
+            />
+          ) : (
+            (tocItems.length > 0) && (
+              <motion.aside
+                initial={{ opacity: 0, x: 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 16 }}
+                className="fixed top-[76px] right-6 md:right-12 z-50 w-[280px] max-h-[70vh] pointer-events-auto"
+              >
+                <div className="bg-white/90 dark:bg-black/90 backdrop-blur-md rounded-2xl shadow-lg border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200/50 dark:border-zinc-800/50">
+                    <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
+                      目录
+                    </span>
+                    <button
+                      onClick={() => setIsTocOpen(false)}
+                      className="text-[10px] font-mono text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
+                      type="button"
+                    >
+                      关闭
+                    </button>
+                  </div>
+                  <div className="max-h-[calc(70vh-44px)] overflow-y-auto no-scrollbar p-2">
+                    {tocItems.map((item, i) => (
+                      <button
+                        key={`${item.index}-${i}`}
+                        onClick={() => {
+                          setCurrentIndex(item.index);
+                          setIsTocOpen(false);
+                        }}
+                        className={twMerge(
+                          "w-full text-left rounded-lg px-2 py-2 transition-colors text-xs",
+                          i === activeTocIndex
+                            ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-900/60 dark:text-zinc-50"
+                            : "text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-900/30"
+                        )}
+                        style={{ paddingLeft: 8 + Math.max(0, item.depth - 1) * 12 }}
+                        type="button"
+                      >
+                        {item.text}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </motion.aside>
+            )
+          )
+        )}
+      </AnimatePresence>
+
+      {/* Floating TOC/Chapter Toggle Button (When BookInfoBar is present, we still need a way to open sidebar) */}
+      {collection && (
+        <div className="fixed top-3 right-6 z-50 flex items-center gap-3">
+           <motion.button
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={() => setIsTocOpen((v) => !v)}
               className={twMerge(
-                "pointer-events-auto flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-2 rounded-full border border-zinc-200/50 dark:border-zinc-800/50 transition-colors",
-                (tocItems.length || collection) ? "hover:bg-white dark:hover:bg-zinc-950" : "opacity-40 cursor-not-allowed"
+                "pointer-events-auto flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-2 rounded-full border border-zinc-200/50 dark:border-zinc-800/50 transition-colors hover:bg-white dark:hover:bg-zinc-950"
               )}
               type="button"
             >
               <List className="w-3 h-3 text-zinc-400" />
               <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
-                {collection ? '章节' : '目录'}
+                章节
               </span>
             </motion.button>
-            {/* Concept HUD */}
-            <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-            >
-                <ConceptHud
-                    cards={visibleCards}
-                    onTermClick={(term) => {
-                        const saved = concepts[term];
-                        if (saved) {
-                             // Center of screen roughly
-                            setActiveCard({
-                                x: window.innerWidth / 2 - 140, // 280px width / 2
-                                y: window.innerHeight / 2 - 100,
-                                term,
-                                savedData: saved
-                            });
-                        }
-                    }}
-                />
-            </motion.div>
-
-            <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-2 rounded-full border border-zinc-200/50 dark:border-zinc-800/50"
-            >
-            <span className="text-[10px] font-mono text-zinc-400">
-                {Math.round(progress)}%
-            </span>
-            <div className="w-12 h-1 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                <motion.div
-                className="h-full bg-zinc-900 dark:bg-zinc-100"
-                initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
-                transition={{ duration: 0.5, ease: "circOut" }}
-                />
-            </div>
-            </motion.div>
-          </div>
+            
+            {/* Concept HUD also needed here */}
+            <ConceptHud 
+                cards={visibleCards} 
+                onTermClick={(term) => {
+                    const saved = concepts[term];
+                    if (saved) {
+                        setActiveCard({
+                            x: window.innerWidth / 2 - 140,
+                            y: window.innerHeight / 2 - 100,
+                            term,
+                            savedData: saved
+                        });
+                    }
+                }}
+            />
         </div>
-      </header>
-
-      {/* Chapter Navigation Buttons - Bottom Center */}
-      {collection && (prevArticleId || nextArticleId) && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 pointer-events-auto"
-        >
-          <div className="flex items-center gap-2 bg-white/90 dark:bg-black/90 backdrop-blur-md rounded-full shadow-lg border border-zinc-200/50 dark:border-zinc-800/50 px-2 py-2">
-            {prevArticleId && (
-              <button
-                onClick={() => router.push(`/read?id=${prevArticleId}`)}
-                className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors group"
-                title="Previous Chapter"
-              >
-                <ChevronLeft className="w-4 h-4 text-zinc-600 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-100" />
-                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">上一章</span>
-              </button>
-            )}
-            <div className="h-6 w-px bg-zinc-200 dark:bg-zinc-800" />
-            {nextArticleId && (
-              <button
-                onClick={() => router.push(`/read?id=${nextArticleId}`)}
-                className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors group"
-                title="Next Chapter"
-              >
-                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">下一章</span>
-                <ChevronRight className="w-4 h-4 text-zinc-600 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-100" />
-              </button>
-            )}
-          </div>
-        </motion.div>
       )}
-
-      <AnimatePresence>
-        {isTocOpen && (tocItems.length > 0 || collection) && (
-          <motion.aside
-            initial={{ opacity: 0, x: 16 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 16 }}
-            className={twMerge(
-              "fixed top-[76px] right-6 md:right-12 z-50 w-[280px] max-h-[70vh] pointer-events-auto",
-              collection && "top-[140px]"
-            )}
-          >
-            <div className="bg-white/90 dark:bg-black/90 backdrop-blur-md rounded-2xl shadow-lg border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200/50 dark:border-zinc-800/50">
-                <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
-                  {collection ? '章节列表' : '目录'}
-                </span>
-                <button
-                  onClick={() => setIsTocOpen(false)}
-                  className="text-[10px] font-mono text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
-                  type="button"
-                >
-                  关闭
-                </button>
-              </div>
-              <div className="max-h-[calc(70vh-44px)] overflow-y-auto no-scrollbar p-2">
-                {collection ? (
-                  // Show chapter list for books
-                  collection?.articles?.sort((a, b) => (a.order || 0) - (b.order || 0)).map((chapter, idx) => (
-                    <button
-                      key={chapter.id}
-                      onClick={() => {
-                        router.push(`/read?id=${chapter.id}`);
-                        setIsTocOpen(false);
-                      }}
-                      className={twMerge(
-                        "w-full text-left rounded-lg px-3 py-2.5 transition-colors text-xs flex items-center gap-2",
-                        chapter.id === article.id
-                          ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-900/60 dark:text-zinc-50"
-                          : "text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-900/30"
-                      )}
-                      type="button"
-                    >
-                      <span className="w-5 h-5 flex items-center justify-center rounded-md bg-zinc-200 dark:bg-zinc-800 text-[10px] font-mono shrink-0">
-                        {idx + 1}
-                      </span>
-                      <span className="flex-1 truncate">{chapter.title}</span>
-                      {(chapter.progress || 0) >= 99 && (
-                        <Check className="w-3 h-3 text-green-600 dark:text-green-400 shrink-0" />
-                      )}
-                    </button>
-                  ))
-                ) : (
-                  // Show markdown headings for regular articles
-                  tocItems.map((item, i) => (
-                    <button
-                      key={`${item.index}-${i}`}
-                      onClick={() => {
-                        setCurrentIndex(item.index);
-                        setIsTocOpen(false);
-                      }}
-                      className={twMerge(
-                        "w-full text-left rounded-lg px-2 py-2 transition-colors text-xs",
-                        i === activeTocIndex
-                          ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-900/60 dark:text-zinc-50"
-                          : "text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-900/30"
-                      )}
-                      style={{ paddingLeft: 8 + Math.max(0, item.depth - 1) * 12 }}
-                      type="button"
-                    >
-                      {item.text}
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
 
       {/* Reading Area */}
       <main 
@@ -1010,78 +962,34 @@ function ReadContent() {
       {/* Completion Modal */}
       <AnimatePresence>
         {isFinished && (
-          <motion.div
+          <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
             className="fixed inset-0 z-[100] flex items-center justify-center bg-white/80 dark:bg-black/80 backdrop-blur-xl"
           >
-            <motion.div
+            <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
               className="bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-2xl border border-zinc-100 dark:border-zinc-800 max-w-sm w-full text-center"
             >
               <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Check className="w-8 h-8 text-zinc-900 dark:text-zinc-100" />
               </div>
               <h2 className="text-2xl font-serif font-medium mb-2">阅读完成</h2>
-              <p className="text-zinc-500 dark:text-zinc-400 mb-6">
-                {collection ? `你已经完成了「${article.title}」的阅读` : '你已经完成了这次深度阅读。'}
+              <p className="text-zinc-500 dark:text-zinc-400 mb-8">
+                你已经完成了这次深度阅读。
               </p>
-
-              {/* Auto-advance countdown for books */}
-              {collection && nextArticleId && autoAdvance && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-6 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-700"
-                >
-                  <p className="text-xs text-zinc-600 dark:text-zinc-400 mb-2">
-                    即将阅读下一章
-                  </p>
-                  <div className="flex items-center justify-center gap-3">
-                    <div className="text-3xl font-mono font-bold text-zinc-900 dark:text-zinc-100">
-                      {countdown}
-                    </div>
-                    <div className="text-left">
-                      <div className="w-24 h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-                        <motion.div
-                          className="h-full bg-zinc-900 dark:bg-zinc-100"
-                          initial={{ width: '100%' }}
-                          animate={{ width: '0%' }}
-                          transition={{ duration: 1, ease: 'linear' }}
-                          key={countdown}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setAutoAdvance(false)}
-                    className="mt-2 text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
-                  >
-                    取消自动跳转
-                  </button>
-                </motion.div>
-              )}
-
               <div className="space-y-3">
                   {nextArticleId && (
                       <button
-                        onClick={() => {
-                          setAutoAdvance(false);
-                          router.replace(`/read?id=${nextArticleId}`);
-                        }}
+                        onClick={() => router.replace(`/read?id=${nextArticleId}`)}
                         className="w-full py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black rounded-xl font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                       >
                         下一章 <ChevronRight className="w-4 h-4" />
                       </button>
                   )}
                   <button
-                    onClick={() => {
-                      setAutoAdvance(false);
-                      router.replace("/");
-                    }}
+                    onClick={() => router.replace("/")}
                     className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl font-medium hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                   >
                     返回首页

@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import * as articlesAPI from "@/lib/api/articles";
-import type { Article } from "@/lib/api/articles";
-import { getReadingStats, ReadingSession } from "@/lib/stats";
+import * as articlesAPI from "@/lib/core/reading/articles.service";
+import type { Article } from "@/lib/core/reading/articles.service";
+import { StatsService } from "@/lib/core/reading/stats.service";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Trash2,
@@ -25,7 +25,7 @@ import { twMerge } from "tailwind-merge";
 export default function OptionsPage() {
   const router = useRouter();
   const [articles, setArticles] = useState<Article[]>([]);
-  const [stats, setStats] = useState<ReadingSession[]>([]);
+  const [stats, setStats] = useState<any[]>([]);
   const [mounted, setMounted] = useState(false);
 
   // Dialog state
@@ -40,7 +40,7 @@ export default function OptionsPage() {
       } catch (error) {
         console.error('Failed to load articles:', error);
       }
-      setStats(getReadingStats());
+      setStats([]); // TODO: Fetch from API or use useStats hook
       setMounted(true);
     };
 

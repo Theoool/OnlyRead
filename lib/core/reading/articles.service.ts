@@ -84,7 +84,7 @@ export async function getArticles(options: {
  */
 export async function getArticle(id: string): Promise<Article | undefined> {
   try {
-    const response = await get<{ article: any }>(`/api/articles?id=${id}`)
+    const response = await get<{ article: any }>(`/api/articles/${id}`)
     const article = response.article
 
     // Transform API response to match interface
@@ -146,7 +146,6 @@ export async function updateArticle(
 ): Promise<Article> {
   // Map frontend field names to database field names
   const dbData: any = {
-    id,
     ...data,
   }
 
@@ -161,7 +160,7 @@ export async function updateArticle(
     delete dbData.lastRead
   }
 
-  const response = await put<ArticleResponse>('/api/articles', dbData)
+  const response = await put<ArticleResponse>(`/api/articles/${id}`, dbData)
   return response.article
 }
 
@@ -169,7 +168,7 @@ export async function updateArticle(
  * Delete an article (soft delete)
  */
 export async function deleteArticle(id: string): Promise<void> {
-  await del<void>(`/api/articles?id=${id}`)
+  await del<void>(`/api/articles/${id}`)
 }
 
 /**

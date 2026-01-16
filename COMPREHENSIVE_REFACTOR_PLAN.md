@@ -261,6 +261,7 @@ model Collection {
   userId      String    @map("user_id") @db.Uuid
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+
   // 基本信息
   title       String
   description String?

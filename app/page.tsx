@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Article } from "@/lib/api/articles";
+import type { Article } from "@/lib/core/reading/articles.service";
 import type { Collection } from "@/lib/core/reading/collections.service";
 import { motion, AnimatePresence } from "framer-motion";
 import {

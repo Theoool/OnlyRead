@@ -101,7 +101,7 @@ export class ConceptsRepository {
         aiRelatedConcepts: data.aiRelatedConcepts || [],
         sourceArticleId: data.sourceArticleId || null,
         isAiCollected: data.isAiCollected,
-        tags: data.tags,
+        // tags: [], // Tags relation handled separately if needed
       },
     });
 
@@ -114,7 +114,7 @@ export class ConceptsRepository {
   }
 
   static async update(userId: string, data: UpdateConceptInput) {
-    const { id, ...updateData } = data;
+    const { id, tags, ...updateData } = data;
 
     // Verify ownership
     const existing = await this.findById(id, userId);

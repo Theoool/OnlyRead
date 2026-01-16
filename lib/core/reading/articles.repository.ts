@@ -3,7 +3,8 @@ import { NotFoundError } from '@/lib/infrastructure/error';
 import { z } from 'zod';
 import { ArticleSchema, ArticleUpdateSchema } from '@/lib/shared/validation/schemas';
 import { generateEmbedding } from '@/lib/infrastructure/ai/embedding';
-import { createId } from '@paralleldrive/cuid2';
+// Use crypto.randomUUID for standard UUID generation
+// import { createId } from '@paralleldrive/cuid2'; 
 
 type CreateArticleInput = z.infer<typeof ArticleSchema>;
 type UpdateArticleInput = z.infer<typeof ArticleUpdateSchema>;
@@ -11,19 +12,8 @@ type UpdateArticleInput = z.infer<typeof ArticleUpdateSchema>;
 export interface PaginationOptions {
   page?: number;
   pageSize?: number;
-  limit?: number; // Deprecated, use pageSize
   type?: string;
-  includeCollectionArticles?: boolean;  // If true, include book chapters
-}
-
-export interface PaginatedResult<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrevious: boolean;
+  includeCollectionArticles?: boolean;
 }
 
 export class ArticlesRepository {
@@ -35,7 +25,6 @@ export class ArticlesRepository {
       deletedAt: null,
     };
 
-    // Only show standalone articles by default (not book chapters)
     if (!includeCollectionArticles) {
       where.collectionId = null;
     }
@@ -44,18 +33,13 @@ export class ArticlesRepository {
       where.type = type;
     }
 
-    // Count total items
     const total = await prisma.article.count({ where });
-
-    // Calculate pagination
-    const skip = (page - 1) * pageSize;
     const totalPages = Math.ceil(total / pageSize);
 
-    // Fetch items
     const items = await prisma.article.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      skip,
+      skip: (page - 1) * pageSize,
       take: pageSize,
       select: {
         id: true,
@@ -69,6 +53,9 @@ export class ArticlesRepository {
         totalReadingTime: true,
         createdAt: true,
         updatedAt: true,
+        collectionId: true,
+        order: true,
+        // No content here - Vertical Partitioning
       },
     });
 
@@ -83,25 +70,37 @@ export class ArticlesRepository {
     };
   }
 
-  static async findById(id: string, userId: string) {
+  static async findById(id: string, userId: string, options?: { withContent?: boolean }) {
+    const { withContent = false } = options || {};
+
     const article = await prisma.article.findFirst({
       where: {
         id,
         userId,
         deletedAt: null,
       },
+      include: withContent ? { body: true } : undefined,
     });
 
     if (!article) {
       throw new NotFoundError('Article not found');
     }
 
-    return article;
+    // Flatten body content for service layer compatibility
+    const articleAny = article as any;
+    const { body, ...rest } = articleAny;
+    return {
+      ...rest,
+      content: body?.content || '',
+      markdown: body?.markdown || '',
+      html: body?.html || '',
+    };
   }
 
   static async create(userId: string, data: CreateArticleInput) {
-    // Generate embedding for article metadata (title + domain + first 200 chars of content)
     let embedding: number[] | undefined;
+    
+    // Generate embedding from content
     try {
       const title = data.title || 'Untitled';
       const domain = data.domain || '';
@@ -110,72 +109,112 @@ export class ArticlesRepository {
       
       embedding = await generateEmbedding(textToEmbed);
     } catch (error) {
-      console.warn('Failed to generate embedding for new article:', error);
+      console.warn('Failed to generate embedding:', error);
     }
 
-    // ID is optional in schema but usually provided by frontend or generated
-    // If id is provided in data, use it.
-    
+    // Transactional create: Article + ArticleBody
     const article = await prisma.article.create({
       data: {
-        id: data.id || createId(), // Use cuid2 for consistent ID generation
+        id: data.id || crypto.randomUUID(),
         userId,
         title: data.title || null,
-        content: data.content,
         type: data.type,
         url: data.url || null,
         domain: data.domain || null,
         progress: data.progress,
         totalBlocks: data.totalBlocks,
         completedBlocks: data.completedBlocks,
+        // Vertical Partitioning
+        body: {
+          create: {
+            content: data.content,
+            markdown: data.type === 'markdown' ? data.content : undefined,
+          }
+        }
       },
+      include: { body: true }
     });
 
-    // Update with embedding if available
     if (embedding) {
       await this.updateEmbedding(article.id, embedding);
     }
 
-    return article;
+    const { body, ...rest } = article;
+    return {
+      ...rest,
+      content: body?.content || '',
+    };
   }
 
   static async update(userId: string, data: UpdateArticleInput) {
     const { id, ...updateData } = data;
 
-    // Verify ownership
-    const existing = await this.findById(id, userId);
+    // Verify ownership and get existing data
+    const existing = await this.findById(id, userId, { withContent: true });
+
+    // Prepare update data
+    const articleData: any = { ...updateData };
+    const content = articleData.content;
+    
+    // Separate content update
+    delete articleData.content;
+    
+    const updatePayload: any = {
+      ...articleData,
+      updatedAt: new Date(),
+    };
+
+    // If content is being updated
+    if (content !== undefined) {
+      updatePayload.body = {
+        upsert: {
+          create: { content },
+          update: { content }
+        }
+      };
+    }
 
     const updated = await prisma.article.update({
       where: { id },
-      data: {
-        ...updateData,
-        updatedAt: new Date(),
-      },
+      data: updatePayload,
+      include: { body: true }
     });
 
-    // If title or content changed, regenerate embedding
+    // Re-generate embedding if title or content changed
+    const newContent = content || existing.content || '';
+    const oldContent = existing.content || '';
+    
     if ((updateData.title && updateData.title !== existing.title) || 
-        (updateData.content && updateData.content.slice(0, 200) !== existing.content.slice(0, 200))) {
+        (content && newContent.slice(0, 200) !== oldContent.slice(0, 200))) {
       try {
         const title = updateData.title || existing.title || 'Untitled';
         const domain = existing.domain || '';
-        const content = updateData.content || existing.content;
-        const contentSnippet = content.slice(0, 200);
+        const contentSnippet = newContent.slice(0, 200);
         
         const textToEmbed = `Title: ${title}\nDomain: ${domain}\nContent: ${contentSnippet}`;
         const embedding = await generateEmbedding(textToEmbed);
         await this.updateEmbedding(id, embedding);
       } catch (error) {
-        console.warn('Failed to update embedding for modified article:', error);
+        console.warn('Failed to update embedding:', error);
       }
     }
 
-    return updated;
+    // Update Search Vector if content/title changed (Async)
+    if (updateData.title || content) {
+        const t = updateData.title || existing.title || '';
+        const c = content || existing.content || '';
+        this.updateSearchVector(id, t, c).catch(console.error);
+    }
+
+    const { body, ...rest } = updated;
+    return {
+      ...rest,
+      content: body?.content || '',
+    };
   }
 
   static async softDelete(id: string, userId: string) {
-    // Verify ownership
-    await this.findById(id, userId);
+    await this.findById(id, userId); // Verify existence/ownership
 
     return prisma.article.update({
       where: { id },
@@ -183,30 +222,30 @@ export class ArticlesRepository {
     });
   }
 
-  /**
-   * Helper to update embedding using raw SQL
-   */
   private static async updateEmbedding(id: string, embedding: number[]) {
-    // Format vector as string: '[0.1, 0.2, ...]'
     const vectorStr = `[${embedding.join(',')}]`;
-    
-    // Explicitly cast to vector(1536) to match the schema definition
-    // Note: Article ID is defined as VARCHAR(255) in schema, not UUID.
-    // So we treat it as text in SQL.
+    // Cast to vector(1536) explicitly
     await prisma.$executeRaw`
       UPDATE articles 
       SET embedding = ${vectorStr}::vector(1536)
-      WHERE id = ${id}
+      WHERE id = ${id}::uuid
     `;
   }
 
-  /**
-   * Find semantically similar articles
-   */
+  private static async updateSearchVector(id: string, title: string, content: string) {
+    // Use 'simple' configuration for broad compatibility
+    await prisma.$executeRaw`
+      UPDATE articles
+      SET "searchVector" = to_tsvector('simple', ${title} || ' ' || ${content})
+      WHERE id = ${id}::uuid
+    `;
+  }
+
   static async findRelated(userId: string, text: string, limit = 5, threshold = 0.7) {
     const embedding = await generateEmbedding(text);
     const vectorStr = `[${embedding.join(',')}]`;
 
+    // Note: id is now uuid in schema
     const results = await prisma.$queryRaw`
       SELECT 
         id, 

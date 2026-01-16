@@ -3,7 +3,10 @@
  * This is needed because Supabase Auth and Prisma Database are separate
  */
 import { createClient } from './server'
-import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/infrastructure/database/prisma';
+
+
+
 
 export async function getOrCreateUser() {
   const supabase = await createClient()

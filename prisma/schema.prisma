@@ -2,20 +2,20 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
-  output   = "../lib/generated/prisma"
-  previewFeatures = ["postgresqlExtensions"]
+  provider        = "prisma-client-js"
+  output          = "../lib/generated/prisma"
+  previewFeatures = ["postgresqlExtensions", "fullTextSearch"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL") // For connection pooling
-  extensions = [vector]
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [vector, pg_trgm]
 }
 
 // ============================================
-// User Model
+// 1. User Core
 // ============================================
 model User {
   id               String   @id @default(uuid()) @db.Uuid
@@ -23,7 +23,10 @@ model User {
   fullName         String?  @map("full_name")
   avatarUrl        String?  @map("avatar_url")
   subscriptionType String   @default("free") @map("subscription_type") @db.VarChar(50)
-  preferences      Json     @default("{\"theme\":\"system\",\"language\":\"zh-CN\",\"dailyGoal\":10,\"notifications\":true}")
+  
+  // Settings moved to separate table for cleaner user object
+  settings         UserSettings?
+
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
   lastActiveAt     DateTime @default(now()) @map("last_active_at")
@@ -34,11 +37,96 @@ model User {
   collections      Collection[]
   reviewHistory    ReviewHistory[]
   readingSessions  ReadingSession[]
+  readingStats     ReadingStats?
+  jobs             Job[]
+  tags             Tag[]
+
   @@map("users")
 }
 
+model UserSettings {
+  userId           String  @id @map("user_id") @db.Uuid
+  user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  theme            String  @default("system")
+  language         String  @default("zh-CN")
+  dailyGoal        Int     @default(10) @map("daily_goal")
+  notifications    Boolean @default(true)
+  
+  @@map("user_settings")
+}
+
 // ============================================
-// Collection Model (Book/Series/Course)
+// 2. Content System (Vertical Partitioning)
+// ============================================
+
+model Article {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  
+  // Metadata - Lightweight
+  title            String?   @db.VarChar(1000)
+  url              String?   @db.Text
+  domain           String?   @db.VarChar(255)
+  summary          String?   @db.Text
+  type             String    @default("markdown") @db.VarChar(50)
+  
+  // Content - Vertically Partitioned
+  body             ArticleBody?
+
+  // Search & Vector
+  searchVector     Unsupported("tsvector")?
+  embedding        Unsupported("vector(1536)")?
+
+  // Progress
+  progress         Int       @default(0) @db.SmallInt
+  currentPosition  Int       @default(0) @map("current_position")
+  totalBlocks      Int       @default(0) @map("total_blocks")
+  completedBlocks  Int       @default(0) @map("completed_blocks")
+
+  // Stats
+  readingStartTime DateTime? @map("reading_start_time")
+  readingEndTime   DateTime? @map("reading_end_time")
+  totalReadingTime Int       @default(0) @map("total_reading_time")
+
+  // Timestamps
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  // Relations
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concepts         Concept[]
+  readingSessions  ReadingSession[]
+  
+  collectionId     String?     @map("collection_id") @db.Uuid
+  collection       Collection? @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  order            Int?        @default(0)
+  
+  parentId         String?     @map("parent_id") @db.Uuid
+  parent           Article?    @relation("ArticleToArticle", fields: [parentId], references: [id])
+  children         Article[]   @relation("ArticleToArticle")
+
+  @@unique([collectionId, order])
+  @@index([userId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([searchVector], type: Gin)
+  @@map("articles")
+}
+
+model ArticleBody {
+  articleId String  @id @map("article_id") @db.Uuid
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  
+  content   String  @db.Text
+  markdown  String? @db.Text
+  html      String? @db.Text
+
+  @@map("article_bodies")
+}
+
+// ============================================
+// 3. Collection Model
 // ============================================
 model Collection {
   id          String    @id @default(uuid()) @db.Uuid
@@ -46,29 +134,27 @@ model Collection {
   description String?
   cover       String?
   type        String    @default("SERIES") // SERIES, BOOK, COURSE
-
+  
   userId      String    @map("user_id") @db.Uuid
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // ✅ 新增: Book元数据
+  // Book Metadata
   author      String?   @db.VarChar(255)
   language    String?   @default("zh-CN") @db.VarChar(10)
   isbn        String?   @unique @db.VarChar(50)
 
-  // ✅ 新增: 进度聚合
+  // Progress
   totalChapters      Int     @default(0) @map("total_chapters")
   completedChapters  Int     @default(0) @map("completed_chapters")
   readingProgress    Float?  @default(0) @map("reading_progress")
 
-  // ✅ 新增: 统计
+  // Stats
   totalWords         BigInt?  @map("total_words")
-  estimatedReadTime  Int?    @map("estimated_read_time")  // minutes
+  estimatedReadTime  Int?    @map("estimated_read_time")
 
-  // ✅ 新增: 用户偏好
-  userPreferences    Json?   @map("user_preferences")
-
+  // Relations
   articles    Article[]
-
+  
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
@@ -78,47 +164,44 @@ model Collection {
 }
 
 // ============================================
-// Concept Model
+// 4. Knowledge Graph (Concept)
 // ============================================
 model Concept {
   id               String    @id @default(uuid()) @db.Uuid
   userId           String    @map("user_id") @db.Uuid
   term             String    @db.VarChar(255)
-
-  // User-defined fields
+  
+  // Definitions
   myDefinition     String    @map("my_definition") @db.Text
   myExample        String    @map("my_example") @db.Text
   myConnection     String?   @map("my_connection") @db.Text
   confidence       Int       @default(3) @db.SmallInt
 
-  // AI-generated fields (optional)
+  // AI Fields
   aiDefinition     String?   @map("ai_definition") @db.Text
   aiExample        String?   @map("ai_example") @db.Text
   aiRelatedConcepts Json?    @default("[]") @map("ai_related_concepts")
   
-  // Vector Embedding for Semantic Search (1536 dimensions for OpenAI text-embedding-3-small)
+  // Vector
   embedding        Unsupported("vector(1536)")?
 
   // Metadata
-  sourceArticleId  String?   @map("source_article_id") @db.Uuid  // ✅ 修复: UUID类型
-  article          Article?  @relation(fields: [sourceArticleId], references: [id], onDelete: SetNull)  // ✅ 新增: 关系
+  sourceArticleId  String?   @map("source_article_id") @db.Uuid
+  article          Article?  @relation(fields: [sourceArticleId], references: [id], onDelete: SetNull)
   isAiCollected    Boolean   @default(false) @map("is_ai_collected")
 
-  // Timestamps
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
-
-  // SRS Algorithm fields
+  // SRS Algorithm
   lastReviewedAt   DateTime? @map("last_reviewed_at")
   reviewCount      Int       @default(0) @map("review_count")
   nextReviewDate   DateTime? @map("next_review_date")
   easeFactor       Decimal   @default(2.5) @map("ease_factor") @db.Decimal(5, 2)
   interval         Int       @default(0)
 
-  // Tags and organization
-  tags             String[]  @default([])
+  // Tags
+  tags             TagsOnConcepts[]
 
-  // Soft delete
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
   deletedAt        DateTime? @map("deleted_at")
 
   // Relations
@@ -128,91 +211,88 @@ model Concept {
   @@index([userId])
   @@index([userId, nextReviewDate])
   @@index([userId, term])
-  @@index([tags], type: Gin)
-  @@index([userId, createdAt(sort: Desc)])
-  @@index([sourceArticleId])  // ✅ 保留: 已有索引
+  @@index([sourceArticleId])
   @@map("concepts")
 }
 
 // ============================================
-// Article Model
+// 5. Tag System
 // ============================================
-model Article {
-  id               String    @id @map("id") @db.VarChar(255)
-  userId           String    @map("user_id") @db.Uuid
+model Tag {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(50)
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Content
-  title            String?   @db.VarChar(1000)
-  content          String    @db.Text
-  type             String    @default("markdown") @db.VarChar(50)
+  concepts  TagsOnConcepts[]
 
-  // Source info
-  url              String?   @db.Text
-  domain           String?   @db.VarChar(255)
+  @@unique([userId, name])
+  @@map("tags")
+}
 
-  // Vector Embedding for Article Metadata (Title + Domain + Description)
-  embedding        Unsupported("vector(1536)")?
+model TagsOnConcepts {
+  conceptId String   @map("concept_id") @db.Uuid
+  tagId     String   @map("tag_id") @db.Uuid
+  
+  concept   Concept  @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
-  // Reading progress
-  progress         Int       @default(0) @db.SmallInt
-  currentPosition  Int       @default(0) @map("current_position")
-  totalBlocks      Int       @default(0) @map("total_blocks")
-  completedBlocks  Int       @default(0) @map("completed_blocks")
+  assignedAt DateTime @default(now())
 
-  // Reading statistics
-  readingStartTime DateTime? @map("reading_start_time")
-  readingEndTime   DateTime? @map("reading_end_time")
-  totalReadingTime Int       @default(0) @map("total_reading_time")
-
-  // Timestamps
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
-
-  // Soft delete
-  deletedAt        DateTime? @map("deleted_at")
-
-  // Relations
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  readingSessions  ReadingSession[]
-
-  collectionId     String?     @map("collection_id") @db.Uuid
-  collection       Collection? @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  order            Int?        @default(0)
-  parentId         String?     @map("parent_id")
-
-  concepts        Concept[]
-
-  @@unique([collectionId, order])  // ✅ 新增: 确保章节顺序唯一
-  @@index([userId])
-  @@index([userId, createdAt(sort: Desc)])
-  @@index([userId, type])
-  @@index([userId, progress])      // ✅ 新增: 按进度查询
-  @@index([collectionId, order])   // 保留: 已有索引
-  @@map("articles")
+  @@id([conceptId, tagId])
+  @@map("tags_on_concepts")
 }
 
 // ============================================
-// Review History Model
+// 6. Async Job System
+// ============================================
+model Job {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  type        JobType
+  status      JobStatus @default(PENDING)
+  
+  payload     Json?
+  result      Json?
+  progress    Int       @default(0)
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("jobs")
+}
+
+enum JobType {
+  IMPORT_FILE
+  GENERATE_EMBEDDING
+  AI_ANALYSIS
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ============================================
+// 7. Stats & History
 // ============================================
 model ReviewHistory {
   id               String    @id @default(uuid()) @db.Uuid
   conceptId        String    @map("concept_id") @db.Uuid
   userId           String    @map("user_id") @db.Uuid
-
-  // SRS quality rating (0-5)
+  
   quality          Int       @db.SmallInt
-
-  // Algorithm state snapshot
   interval         Int
   easeFactor       Decimal   @map("ease_factor") @db.Decimal(5, 2)
-
-  // Timestamp
+  
   reviewedAt       DateTime  @default(now()) @map("reviewed_at")
-
-  // Session tracking
   sessionId        String?   @map("session_id") @db.Uuid
 
-  // Relations
   concept          Concept   @relation(fields: [conceptId], references: [id], onDelete: Cascade)
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -222,28 +302,41 @@ model ReviewHistory {
   @@map("review_history")
 }
 
-// ============================================
-// Reading Session Model
-// ============================================
 model ReadingSession {
   id               String    @id @default(uuid()) @db.Uuid
   userId           String    @map("user_id") @db.Uuid
-  articleId        String?   @map("article_id") @db.VarChar(255)
-
-  // Session statistics
+  articleId        String?   @map("article_id") @db.Uuid // Changed to UUID
+  
   durationSeconds  Int       @map("duration_seconds")
   blocksCompleted  Int       @default(0) @map("blocks_completed")
   conceptsCreated  Int       @default(0) @map("concepts_created")
-
-  // Timestamp
+  
   startedAt        DateTime  @default(now()) @map("started_at")
   completedAt      DateTime? @map("completed_at")
 
-  // Relations
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   article          Article?  @relation(fields: [articleId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([userId, startedAt(sort: Desc)])
   @@map("reading_sessions")
+}
+
+model ReadingStats {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @unique @map("user_id") @db.Uuid
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  totalArticles   Int       @default(0) @map("total_articles")
+  totalReadingTime BigInt   @default(0) @map("total_reading_time")
+  totalSessions   Int       @default(0) @map("total_sessions")
+  currentStreak   Int       @default(0) @map("current_streak")
+  longestStreak   Int       @default(0) @map("longest_streak")
+
+  lastReadDate    DateTime? @map("last_read_date") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("reading_stats")
+  @@index([userId])
 }

@@ -1,4 +1,4 @@
-import { prisma } from '../lib/prisma'
+import { prisma } from '../lib/infrastructure/database/prisma'
 
 async function main() {
   console.log('Checking and applying pg_trgm indexes...')

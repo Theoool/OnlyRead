@@ -2,18 +2,17 @@ import { NextResponse } from 'next/server';
 import { FileParser } from '@/lib/file-parser';
 import { prisma } from '@/lib/infrastructure/database/prisma';
 import { createClient } from '@/lib/supabase/server';
-import { createId } from '@paralleldrive/cuid2';
 
 export const runtime = 'nodejs';
 
 // Increase body size limit for this route
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '50mb',
-    },
-  },
-};
+// export const config = {
+//   api: {
+//     bodyParser: {
+//       sizeLimit: '50mb',
+//     },
+//   },
+// };
 
 export async function POST(req: Request) {
   try {
@@ -78,21 +77,40 @@ export async function POST(req: Request) {
       });
 
       // Prepare article data for batch insertion
-      const articlesData = parsedBook.chapters.map((chapter) => ({
-        id: createId(),
-        title: chapter.title,
-        content: chapter.content,
-        userId: user.id,
-        collectionId: collection.id,
-        order: chapter.order,
-        type: 'markdown',
-        domain: 'local-file',
-      }));
+      const articlesData: any[] = [];
+      const articleBodiesData: any[] = [];
+      
+      parsedBook.chapters.forEach((chapter) => {
+        const id = crypto.randomUUID();
+        
+        articlesData.push({
+          id,
+          title: chapter.title,
+          // content: chapter.content, // Moved to ArticleBody
+          userId: user.id,
+          collectionId: collection.id,
+          order: chapter.order,
+          type: 'markdown',
+          domain: 'local-file',
+        });
+
+        articleBodiesData.push({
+          articleId: id,
+          content: chapter.content,
+          markdown: chapter.content,
+        });
+      });
 
       // Batch create articles for performance
       if (articlesData.length > 0) {
+        // 1. Create Articles (Metadata)
         await tx.article.createMany({
           data: articlesData,
+        });
+
+        // 2. Create ArticleBodies (Content)
+        await tx.articleBody.createMany({
+          data: articleBodiesData,
         });
       }
 
