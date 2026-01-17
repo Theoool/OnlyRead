@@ -52,7 +52,7 @@ export async function POST(req: Request) {
                 id: article.id,
                 userId: user.id,
                 title: article.title || null,
-                content: article.content || '',
+           
                 type: article.type || 'markdown',
                 url: article.url || null,
                 domain: article.domain || null,

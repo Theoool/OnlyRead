@@ -27,7 +27,7 @@ export async function GET(req: Request) {
         fullName: true,
         avatarUrl: true,
         subscriptionType: true,
-        preferences: true,
+
         createdAt: true,
         lastActiveAt: true,
         _count: {
@@ -60,7 +60,7 @@ export async function GET(req: Request) {
           fullName: true,
           avatarUrl: true,
           subscriptionType: true,
-          preferences: true,
+         
           createdAt: true,
           lastActiveAt: true,
           _count: {

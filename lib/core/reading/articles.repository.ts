@@ -130,7 +130,7 @@ export class ArticlesRepository {
           create: {
             content: data.content,
             markdown: data.type === 'markdown' ? data.content : undefined,
-            html: data.type === 'html' ? data.content : undefined,
+            
           }
         }
       },
