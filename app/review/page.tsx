@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ConceptData } from "@/lib/store/useConceptStore";
 import { calculateSRS } from "@/lib/srs";
@@ -22,18 +22,22 @@ export default function ReviewPage() {
   // AI Definition State (fetched from cache or placeholder)
   const [aiDefinition, setAiDefinition] = useState<string | null>(null);
 
-  // Filter concepts due for review (使用useMemo自动更新)
+  // Initialize review queue
+  // We only set the queue once to ensure stability during the session
   useEffect(() => {
-    // Filter concepts due for review
+    if (queue.length > 0 || loading) return;
+
     const now = Date.now();
     const due = Object.values(concepts).filter(c => {
       // If never reviewed, it's due. Or if nextReviewDate is passed.
       return !c.nextReviewDate || c.nextReviewDate <= now;
     });
 
-    // Limit to 10 per session to keep it "Small & Beautiful"
-    setQueue(due.sort((a, b) => (a.nextReviewDate || 0) - (b.nextReviewDate || 0)).slice(0, 10));
-  }, [concepts]);
+    if (due.length > 0) {
+      // Limit to 10 per session to keep it "Small & Beautiful"
+      setQueue(due.sort((a, b) => (a.nextReviewDate || 0) - (b.nextReviewDate || 0)).slice(0, 10));
+    }
+  }, [concepts, queue.length, loading]);
 
   // Preload AI definition for the next card
   useEffect(() => {
@@ -58,10 +62,33 @@ export default function ReviewPage() {
 
   const currentCard = queue[currentIndex];
 
+  // Load AI definition for current card
   useEffect(() => {
-      if (currentCard) {
-          const cached = getCachedConcept<any>(currentCard.term);
-          setAiDefinition(cached?.definition || "AI definition unavailable.");
+      if (!currentCard) return;
+
+      const cached = getCachedConcept<any>(currentCard.term);
+      if (cached?.definition) {
+          setAiDefinition(cached.definition);
+      } else {
+          setAiDefinition(null); // Clear previous while fetching
+          fetch("/api/concept", {
+              method: "POST",
+              credentials: 'include',
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ selection: currentCard.term }),
+          })
+          .then(res => res.json())
+          .then(data => {
+              if (data.definition) {
+                  setCachedConcept(currentCard.term, data);
+                  setAiDefinition(data.definition);
+              } else {
+                  setAiDefinition("AI definition unavailable.");
+              }
+          })
+          .catch(() => {
+              setAiDefinition("AI definition unavailable.");
+          });
       }
   }, [currentCard]);
 
