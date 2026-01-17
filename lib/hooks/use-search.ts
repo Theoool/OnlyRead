@@ -46,7 +46,7 @@ export function useSearch(query: string, type: 'all' | 'concepts' | 'articles' =
 
       const res = await fetch(
         `/api/search?q=${encodeURIComponent(query)}&type=${type}`,
-        { credentials: 'include' }
+     
       )
 
       if (!res.ok) {

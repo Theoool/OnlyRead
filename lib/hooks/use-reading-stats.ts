@@ -20,6 +20,7 @@ export interface ReadingStats {
   totalSessions: number;
   currentStreak: number;
   longestStreak: number;
+  longestSessionSeconds?: number;
   
   // Breakdown
   dailyBreakdown: Array<{

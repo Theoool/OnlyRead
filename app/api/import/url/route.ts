@@ -42,7 +42,7 @@ export async function POST(req: Request) {
         userId: user.id,
         collectionId: collectionId || null,
         type: 'markdown',
-        // Vertical Partitioning
+           
         body: {
           create: {
             content: extracted.content,
@@ -54,6 +54,8 @@ export async function POST(req: Request) {
         body: true // Return content if needed
       }
     });
+    
+
 
     const { body: articleBody, ...rest } = article;
     return NextResponse.json({ 

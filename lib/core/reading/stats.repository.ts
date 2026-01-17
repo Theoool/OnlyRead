@@ -110,4 +110,13 @@ export class StatsRepository {
       longestStreak
     };
   }
+
+  static async getLongestSessionDuration(userId: string) {
+    const session = await prisma.readingSession.findFirst({
+      where: { userId },
+      orderBy: { durationSeconds: 'desc' },
+      select: { durationSeconds: true }
+    });
+    return session?.durationSeconds || 0;
+  }
 }

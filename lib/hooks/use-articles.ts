@@ -54,12 +54,13 @@ export function useArticlesInfinite(options: {
  * 获取单篇文章
  */
 export function useArticle(id: string) {
-  return useQuery({
+  const a= useQuery({
     queryKey: queryKeys.article(id),
     queryFn: () => articlesAPI.getArticle(id),
     enabled: !!id,
     retry: 1,
   })
+  return a
 }
 
 /**
@@ -116,4 +117,22 @@ export function useUpdateArticleProgress() {
       queryClient.invalidateQueries({ queryKey: queryKeys.articles })
     },
   })
+}
+
+/**
+ * 获取文章的导航信息（上一章、下一章、所属合集）
+ */
+export function useArticleNavigation(articleId: string | undefined) {
+  return useQuery({
+    queryKey: ['article', articleId, 'navigation'],
+    queryFn: async () => {
+      if (!articleId) return null;
+      const res = await fetch(`/api/collections/${articleId}/navigation`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.data.navigation;
+    },
+    enabled: !!articleId,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
 }

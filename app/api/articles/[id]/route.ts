@@ -21,8 +21,7 @@ export const GET = apiHandler(async (req: Request, { params }: { params: Promise
   const user = await requireUser();
   const { id } = await params;
 
-  // For reading view, we usually need the content
-  const article = await ArticlesRepository.findById(id, user.id, { withContent: true });
+  const article = await ArticlesRepository.findById(id, user.id);
   return createSuccessResponse({ article });
 });
 

@@ -15,7 +15,7 @@ import { ConceptCard } from "@/app/components/ConceptCard";
 import { SelectionToolbar } from "@/app/components/SelectionToolbar";
 import { ConceptHud } from "@/app/components/ConceptHud";
 import { useConceptStore, ConceptData } from "@/lib/store/useConceptStore";
-import { useArticle, useUpdateArticleProgress } from "@/lib/hooks";
+import { useArticle, useUpdateArticleProgress, useArticleNavigation } from "@/lib/hooks";
 import { getCollection, Collection } from "@/lib/core/reading/collections.service";
 import { RelatedConcepts } from "../components/RelatedConcepts";
 import { BookInfoBar } from "@/app/components/book/BookInfoBar";
@@ -29,7 +29,7 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
   const [error, setError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
-  if (!isOpen) {
+if (!isOpen) {
     return (
       <button 
         onClick={() => setIsOpen(true)}

@@ -79,21 +79,22 @@ export class ArticlesRepository {
         userId,
         deletedAt: null,
       },
-      include: withContent ? { body: true } : undefined,
+      include: {
+        body: true,
+      },
     });
 
     if (!article) {
       throw new NotFoundError('Article not found');
     }
 
-    // Flatten body content for service layer compatibility
-    const articleAny = article as any;
-    const { body, ...rest } = articleAny;
+    // Return structure matching the service layer expectation
     return {
-      ...rest,
-      content: body?.content || '',
-      markdown: body?.markdown || '',
-      html: body?.html || '',
+      ...article,
+      content: article.body?.content,
+      markdown: article.body?.markdown,
+      html: article.body?.html,
+      body: undefined,
     };
   }
 
@@ -112,10 +113,10 @@ export class ArticlesRepository {
       console.warn('Failed to generate embedding:', error);
     }
 
-    // Transactional create: Article + ArticleBody
     const article = await prisma.article.create({
       data: {
-        id: data.id || crypto.randomUUID(),
+        // id: data.id || crypto.randomUUID(), // Let Prisma generate UUID or use provided
+        ...(data.id ? { id: data.id } : {}),
         userId,
         title: data.title || null,
         type: data.type,
@@ -124,52 +125,57 @@ export class ArticlesRepository {
         progress: data.progress,
         totalBlocks: data.totalBlocks,
         completedBlocks: data.completedBlocks,
-        // Vertical Partitioning
+        // content: data.content, // REMOVED
         body: {
           create: {
             content: data.content,
             markdown: data.type === 'markdown' ? data.content : undefined,
+            html: data.type === 'html' ? data.content : undefined,
           }
         }
       },
-      include: { body: true }
+      include: {
+        body: true
+      }
     });
 
     if (embedding) {
       await this.updateEmbedding(article.id, embedding);
     }
 
-    const { body, ...rest } = article;
     return {
-      ...rest,
-      content: body?.content || '',
+      ...article,
+      content: article.body?.content,
+      markdown: article.body?.markdown,
+      body: undefined
     };
   }
 
   static async update(userId: string, data: UpdateArticleInput) {
     const { id, ...updateData } = data;
 
-    // Verify ownership and get existing data
+    // Verify ownership
     const existing = await this.findById(id, userId, { withContent: true });
 
     // Prepare update data
-    const articleData: any = { ...updateData };
-    const content = articleData.content;
-    
-    // Separate content update
-    delete articleData.content;
+    const { content, ...metaData } = updateData;
     
     const updatePayload: any = {
-      ...articleData,
+      ...metaData,
       updatedAt: new Date(),
     };
 
-    // If content is being updated
     if (content !== undefined) {
       updatePayload.body = {
         upsert: {
-          create: { content },
-          update: { content }
+          create: {
+            content: content,
+            markdown: existing.type === 'markdown' ? content : undefined,
+          },
+          update: {
+            content: content,
+            markdown: existing.type === 'markdown' ? content : undefined,
+          }
         }
       };
     }
@@ -206,10 +212,11 @@ export class ArticlesRepository {
         this.updateSearchVector(id, t, c).catch(console.error);
     }
 
-    const { body, ...rest } = updated;
     return {
-      ...rest,
-      content: body?.content || '',
+      ...updated,
+      content: updated.body?.content,
+      markdown: updated.body?.markdown,
+      body: undefined
     };
   }
 

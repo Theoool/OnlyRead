@@ -52,20 +52,13 @@ export async function POST(req: Request) {
                 id: article.id,
                 userId: user.id,
                 title: article.title || null,
-                // content: article.content || '', // Moved to ArticleBody
+                content: article.content || '',
                 type: article.type || 'markdown',
                 url: article.url || null,
                 domain: article.domain || null,
                 progress: article.progress || 0,
                 totalBlocks: 0,
                 completedBlocks: 0,
-                // Vertical Partitioning
-                body: {
-                  create: {
-                    content: article.content || '',
-                    markdown: article.type === 'markdown' ? (article.content || '') : undefined,
-                  }
-                }
               },
             })
             results.articles.synced++
@@ -104,7 +97,7 @@ export async function POST(req: Request) {
                 myConnection: concept.myConnection || null,
                 confidence: concept.confidence || 3,
                 sourceArticleId: concept.sourceArticleId || null,
-                // tags: [], // Skip tags for now
+             
                 interval: concept.interval || 0,
                 easeFactor: concept.easeFactor || 2.5,
                 reviewCount: concept.reviewCount || 0,

@@ -105,4 +105,8 @@ export class StatsService {
     
     return true;
   }
+
+  static async getLongestSessionDuration(userId: string) {
+    return StatsRepository.getLongestSessionDuration(userId);
+  }
 }

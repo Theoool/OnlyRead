@@ -2,17 +2,9 @@ import { NextResponse } from 'next/server';
 import { FileParser } from '@/lib/file-parser';
 import { prisma } from '@/lib/infrastructure/database/prisma';
 import { createClient } from '@/lib/supabase/server';
+import * as crypto from 'crypto';
 
 export const runtime = 'nodejs';
-
-// Increase body size limit for this route
-// export const config = {
-//   api: {
-//     bodyParser: {
-//       sizeLimit: '50mb',
-//     },
-//   },
-// };
 
 export async function POST(req: Request) {
   try {
@@ -21,106 +13,182 @@ export async function POST(req: Request) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const contentType = req.headers.get('content-type') || '';
-    console.log('[Upload] Content-Type:', contentType);
-
-    if (!contentType.includes('multipart/form-data')) {
-      return NextResponse.json({ error: 'Content-Type must be multipart/form-data' }, { status: 400 });
+    
+    // Support JSON body containing filePath
+    if (!contentType.includes('application/json')) {
+      return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 400 });
     }
 
-    let formData: FormData;
-    try {
-      formData = await req.formData();
-    } catch (e: any) {
-      console.error('[Upload] Failed to parse FormData:', e);
-      return NextResponse.json({ error: `Failed to parse body: ${e.message}` }, { status: 400 });
+    const body = await req.json();
+    const { filePath, originalName, fileType } = body;
+
+    if (!filePath || !originalName) {
+      return NextResponse.json({ error: 'Missing filePath or originalName' }, { status: 400 });
     }
 
-    const file = formData.get('file') as File;
+    console.log('[Import] Processing file from Supabase:', filePath, originalName);
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+    // Download file from Supabase Storage
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('files')
+      .download(filePath);
+
+    if (downloadError || !fileData) {
+      console.error('Download error:', downloadError);
+      return NextResponse.json({ error: 'Failed to download file from storage' }, { status: 500 });
     }
 
-    console.log('[Upload] File received:', file.name, file.size, file.type);
-
-    // Validate file size (50MB limit)
-    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json({
-        error: `File too large. Maximum size: ${MAX_FILE_SIZE / 1024 / 1024}MB`,
-        code: 'FILE_TOO_LARGE'
-      }, { status: 413 });
-    }
-
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const buffer = Buffer.from(await fileData.arrayBuffer());
     const parser = new FileParser();
     let parsedBook;
+    
+    // Determine file type from original name or fileType
+    const isEpub = originalName.toLowerCase().endsWith('.epub');
+    const isPdf = originalName.toLowerCase().endsWith('.pdf');
+    const isMd = originalName.toLowerCase().endsWith('.md');
+    const isTxt = originalName.toLowerCase().endsWith('.txt');
 
-    if (file.name.toLowerCase().endsWith('.epub')) {
+    if (isEpub) {
       parsedBook = await parser.parseEpub(buffer);
-    } else if (file.name.toLowerCase().endsWith('.pdf')) {
+    } else if (isPdf) {
       parsedBook = await parser.parsePdf(buffer);
+    } else if (isMd || isTxt) {
+      // Basic text parsing
+      const text = buffer.toString('utf-8');
+      parsedBook = {
+        title: originalName.replace(/\.[^/.]+$/, ""),
+        description: '',
+        chapters: [{
+          title: originalName,
+          content: text,
+          order: 0
+        }]
+      };
     } else {
-       return NextResponse.json({ error: 'Unsupported file format. Please upload .epub or .pdf' }, { status: 400 });
+       return NextResponse.json({ error: 'Unsupported file format' }, { status: 400 });
     }
 
-    // Use transaction to ensure data consistency
-    const result = await prisma.$transaction(async (tx) => {
-      // Create Collection
-      const collection = await tx.collection.create({
-        data: {
-          title: parsedBook.title,
-          description: parsedBook.description,
-          type: file.name.toLowerCase().endsWith('.epub') ? 'BOOK' : 'DOCUMENT',
-          userId: user.id,
-        }
-      });
+    // 1. Create Collection (Outside transaction to reduce lock time)
+    // Handle potential undefined or null characters
+    const safeTitle = (parsedBook.title || originalName || 'Untitled').replace(/\0/g, '');
+    const safeDesc = (parsedBook.description || '').replace(/\0/g, '');
 
-      // Prepare article data for batch insertion
-      const articlesData: any[] = [];
-      const articleBodiesData: any[] = [];
-      
-      parsedBook.chapters.forEach((chapter) => {
-        const id = crypto.randomUUID();
-        
-        articlesData.push({
-          id,
-          title: chapter.title,
-          // content: chapter.content, // Moved to ArticleBody
-          userId: user.id,
-          collectionId: collection.id,
-          order: chapter.order,
-          type: 'markdown',
-          domain: 'local-file',
-        });
-
-        articleBodiesData.push({
-          articleId: id,
-          content: chapter.content,
-          markdown: chapter.content,
-        });
-      });
-
-      // Batch create articles for performance
-      if (articlesData.length > 0) {
-        // 1. Create Articles (Metadata)
-        await tx.article.createMany({
-          data: articlesData,
-        });
-
-        // 2. Create ArticleBodies (Content)
-        await tx.articleBody.createMany({
-          data: articleBodiesData,
-        });
+    const collection = await prisma.collection.create({
+      data: {
+        title: safeTitle,
+        description: safeDesc,
+        type: isEpub ? 'BOOK' : 'DOCUMENT',
+        userId: user.id,
       }
-
-      return { collection, articlesCount: articlesData.length };
     });
+
+    // 2. Prepare article data
+    if (!parsedBook.chapters || parsedBook.chapters.length === 0) {
+       await prisma.collection.delete({ where: { id: collection.id } });
+       return NextResponse.json({ error: 'No chapters found in file', code: 'NO_CHAPTERS' }, { status: 400 });
+    }
+
+    const articlesData: any[] = [];
+    const now = new Date(); // Unified timestamp
+    
+    parsedBook.chapters.forEach((chapter, index) => {
+      const id = crypto.randomUUID();
+      
+      // Ensure content is never empty or null, as it is a required field
+      // Also remove null bytes which are not allowed in Postgres
+      const safeContent = (chapter.content || '').replace(/\0/g, ''); 
+      // Truncate title to fit database limit (1000 chars)
+      const safeTitle = (chapter.title || 'Untitled Chapter').replace(/\0/g, '').substring(0, 1000);
+      
+      // Calculate stats
+      const totalBlocks = safeContent.split(/\n\s*\n/).filter(Boolean).length;
+      const totalReadingTime = Math.ceil(safeContent.length / 400); // ~400 chars/min
+
+      articlesData.push({
+     
+        title: safeTitle,
+        content: safeContent,
+        userId: user.id,
+        collectionId: collection.id,
+        order: index, // FORCE sequential order to avoid unique constraint violation
+        type: 'markdown',
+        domain: 'local-file',
+        // Explicitly set timestamps for createMany
+        createdAt: now,
+        updatedAt: now,
+        // Explicitly set default values
+        progress: 0,
+        currentPosition: 0,
+        totalBlocks: totalBlocks || 0,
+        completedBlocks: 0,
+        totalReadingTime: totalReadingTime || 0
+      });
+    });
+
+    // 3. Batch insert articles (No transaction wrapper to allow partial success/easier debugging)
+    // Using smaller batches
+    let insertedCount = 0;
+    const errors: any[] = [];
+    
+    if (articlesData.length > 0) {
+      const BATCH_SIZE = 5; // Reduced batch size for safety
+      
+      for (let i = 0; i < articlesData.length; i += BATCH_SIZE) {
+        const batch = articlesData.slice(i, i + BATCH_SIZE);
+        try {
+          // Use transaction to create articles individually to support nested writes (body)
+          await prisma.$transaction(
+            batch.map((articleData: any) => {
+               // Extract content to separate variable as it's not in Article model
+               const { content, ...metaData } = articleData;
+               return prisma.article.create({
+                 data: {
+                   ...metaData,
+                   // Add body relation
+                   body: {
+                     create: {
+                       content: content,
+                       markdown: content, // Use content as markdown default
+                     }
+                   }
+                 }
+               });
+            })
+          );
+          insertedCount += batch.length;
+        } catch (e: any) {
+          console.error(`Failed to insert batch ${i/BATCH_SIZE}:`, e);
+          errors.push({
+            batch: i/BATCH_SIZE,
+            code: e.code,
+            message: e.message || String(e),
+            meta: e.meta
+          });
+          // Continue with next batch to save what we can
+        }
+      }
+    }
+    
+    // If no articles were inserted but we expected some, delete the collection to prevent empty books
+    if (articlesData.length > 0 && insertedCount === 0) {
+        await prisma.collection.delete({ where: { id: collection.id } });
+        return NextResponse.json({
+            error: 'Failed to import any chapters. Please check the file content.',
+            details: errors,
+            code: 'IMPORT_FAILED'
+        }, { status: 500 });
+    }
+
+    // Optional: Clean up file from storage to save space?
+    // For now, let's keep it as a backup or archive.
+    await supabase.storage.from('files').remove([filePath]);
 
     return NextResponse.json({
       data: {
-        collection: result.collection,
-        articlesCount: result.articlesCount,
+        collection: collection,
+        articlesCount: insertedCount, // Return actual inserted count
+        totalChapters: articlesData.length,
+        errors: errors.length > 0 ? errors : undefined,
         warnings: parsedBook.failedChapters?.length ? parsedBook.failedChapters : undefined
       }
     });

@@ -66,9 +66,28 @@ export class FileParser {
 
           if (chapterText) {
              const markdown = this.turndown.turndown(chapterText);
+             
+             // Filter out empty or extremely short chapters (e.g., copyright pages with no real content)
+             // Threshold: < 50 chars and no images
+             if (markdown.length < 50 && !markdown.includes('![')) {
+                // Check if it's a "junk" chapter
+                const lowerMd = markdown.toLowerCase();
+                if (lowerMd.includes('copyright') || lowerMd.includes('版权') || !markdown.trim()) {
+                   continue;
+                }
+             }
+
              // Try to use the title from the manifest/TOC if available, otherwise ID
-             // chapterRef usually has { id, title, href, ... }
-             const title = chapterRef.title || chapterRef.id;
+             let title = chapterRef.title || chapterRef.id;
+             
+             // Improve title if it's just an ID
+             if (title === chapterRef.id) {
+                 // Try to extract first heading from markdown
+                 const match = markdown.match(/^#\s+(.+)$/m);
+                 if (match) {
+                     title = match[1].trim();
+                 }
+             }
 
              book.chapters.push({
                title: title,
@@ -115,7 +134,7 @@ export class FileParser {
       let lastY, text = '';
       
       // Basic text stitching
-      for (let item of textContent.items) {
+      for (const item of textContent.items) {
         if (lastY == item.transform[5] || !lastY) {
           text += item.str;
         } else {
@@ -137,20 +156,36 @@ export class FileParser {
     const parse = (pdfParse as any).default || (pdfParse as any);
     const data = await parse(fileBuffer, options);
     
-    // Group pages into chapters to avoid too many small articles
-    // e.g., 10 pages per chapter
-    const PAGES_PER_CHAPTER = 10;
+    // Group pages based on word count (approx 3000-5000 chars per chapter) 
+    // instead of fixed page count, to create better reading flow.
+    const CHARS_PER_CHAPTER = 4000;
     const chapters: ParsedChapter[] = [];
     
-    for (let i = 0; i < pages.length; i += PAGES_PER_CHAPTER) {
-      const chunk = pages.slice(i, i + PAGES_PER_CHAPTER);
-      const content = chunk.join('\n\n---\n\n'); // Separate pages visually
+    let currentChapterContent = '';
+    let currentStartPage = 1;
+    let order = 0;
+
+    for (let i = 0; i < pages.length; i++) {
+      const pageText = pages[i];
       
-      chapters.push({
-        title: `Pages ${i + 1} - ${Math.min(i + PAGES_PER_CHAPTER, pages.length)}`,
-        content: content,
-        order: Math.floor(i / PAGES_PER_CHAPTER),
-      });
+      if (currentChapterContent.length > 0) {
+         currentChapterContent += '\n\n---\n\n';
+      }
+      currentChapterContent += pageText;
+      
+      // Check if we should split
+      // We split if content exceeds threshold OR it's the last page
+      if (currentChapterContent.length >= CHARS_PER_CHAPTER || i === pages.length - 1) {
+        chapters.push({
+          title: `Pages ${currentStartPage} - ${i + 1}`,
+          content: currentChapterContent,
+          order: order++,
+        });
+        
+        // Reset
+        currentChapterContent = '';
+        currentStartPage = i + 2;
+      }
     }
 
     return {

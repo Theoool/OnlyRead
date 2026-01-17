@@ -17,6 +17,7 @@ export const GET = apiHandler(async (req) => {
 
   // Get aggregated stats (fast)
   const overallStats = await StatsService.getReadingStats(user.id);
+  const longestSession = await StatsService.getLongestSessionDuration(user.id);
 
   // Get period stats (calculated)
   const periodStats = await StatsService.getPeriodStats(user.id, period);
@@ -28,6 +29,7 @@ export const GET = apiHandler(async (req) => {
     totalSessions: overallStats.totalSessions,
     currentStreak: overallStats.currentStreak,
     longestStreak: overallStats.longestStreak,
+    longestSessionSeconds: longestSession,
   });
 });
 

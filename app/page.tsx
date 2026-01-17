@@ -27,6 +27,7 @@ import {
 import { twMerge } from "tailwind-merge";
 import { useConceptStore, ConceptData } from "@/lib/store/useConceptStore";
 import { useAuthStore } from "@/lib/store/useAuthStore";
+import { createClient } from "@/lib/supabase/client";
 import { SearchBar } from "@/app/components/SearchBar";
 import { User, LogOut } from "lucide-react";
 import { useRouter } from 'next/navigation';
@@ -187,6 +188,11 @@ export default function Home() {
   }
 
   async function handleFile(file: File) {
+    if (!user) {
+      setError("请先登录以上传文件");
+      return;
+    }
+
     setLoading(true);
     setError("");
     
@@ -198,22 +204,41 @@ export default function Home() {
       const isTxt = file.name.toLowerCase().endsWith('.txt');
 
       if (!isEpub && !isPdf && !isMd && !isTxt) {
-        throw new Error("Unsupported file format. Please upload .epub, .pdf, .md, or .txt");
+        throw new Error("不支持的文件格式。请上传 .epub, .pdf, .md, 或 .txt");
       }
 
-      // 2. Prepare FormData
-      const formData = new FormData();
-      formData.append('file', file);
+      // 2. Upload to Supabase Storage
+      const supabase = createClient();
+      const fileExt = file.name.split('.').pop();
+      // Sanitize file name to avoid issues with special characters
+      const sanitizedFileName = file.name.replace(/[^\x00-\x7F]/g, "").replace(/\s+/g, "_");
+      const filePath = `${user.id}/${Date.now()}_${sanitizedFileName}`;
 
-      // 3. Upload
+      const { error: uploadError } = await supabase.storage
+        .from('files')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        console.error('Supabase upload error:', uploadError);
+        throw new Error(`上传失败: ${uploadError.message}`);
+      }
+
+      // 3. Notify Backend to process
       const res = await fetch('/api/import/file', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          filePath, 
+          originalName: file.name,
+          fileType: file.type
+        }),
       });
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || 'Upload failed');
+        throw new Error(errorData.error || 'Process failed');
       }
 
       const data = await res.json();

@@ -3,10 +3,10 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import * as articlesAPI from "@/lib/core/reading/articles.service";
 import type { Article } from "@/lib/core/reading/articles.service";
-import { StatsService } from "@/lib/core/reading/stats.service";
+import { useReadingStats } from "@/lib/hooks/use-reading-stats";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Trash2,
+    import {
+      Trash2,
   Download,
   Play,
   RotateCcw,
@@ -25,7 +25,7 @@ import { twMerge } from "tailwind-merge";
 export default function OptionsPage() {
   const router = useRouter();
   const [articles, setArticles] = useState<Article[]>([]);
-  const [stats, setStats] = useState<any[]>([]);
+  const { data: readingStats } = useReadingStats('all');
   const [mounted, setMounted] = useState(false);
 
   // Dialog state
@@ -40,7 +40,6 @@ export default function OptionsPage() {
       } catch (error) {
         console.error('Failed to load articles:', error);
       }
-      setStats([]); // TODO: Fetch from API or use useStats hook
       setMounted(true);
     };
 
@@ -48,8 +47,7 @@ export default function OptionsPage() {
   }, []);
 
   const statistics = useMemo(() => {
-    const totalDurationMs = stats.reduce((acc, s) => acc + s.duration, 0);
-    const totalMinutes = Math.floor(totalDurationMs / 60000);
+    const totalMinutes = readingStats ? Math.floor(readingStats.totalReadingTime / 60) : 0;
     
     const finishedCount = articles.filter(a => (a.progress || 0) >= 99).length;
     
@@ -74,8 +72,9 @@ export default function OptionsPage() {
     const avgSpeed = totalMinutes > 0 ? Math.round(totalChars / totalMinutes) : 0;
 
     // Max continuous reading
-    const maxSession = stats.reduce((max, s) => Math.max(max, s.duration), 0);
-    const maxSessionMin = Math.floor(maxSession / 60000);
+    const maxSessionMin = readingStats?.longestSessionSeconds 
+      ? Math.floor(readingStats.longestSessionSeconds / 60) 
+      : 0;
 
     return {
       totalMinutes,
@@ -83,7 +82,7 @@ export default function OptionsPage() {
       avgSpeed,
       maxSessionMin
     };
-  }, [articles, stats]);
+  }, [articles, readingStats]);
 
   async function handleDelete(id: string) {
     try {
