@@ -26,6 +26,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
     }
 
+    // Validate collectionId is a valid UUID if present
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const validCollectionId = collectionId && uuidRegex.test(collectionId) ? collectionId : null;
+
+    if (collectionId && !validCollectionId) {
+      console.warn(`Invalid collectionId format received: ${collectionId}`);
+    }
+
     const extractor = new ContentExtractor();
     
     // Use Jina by default
@@ -40,9 +48,8 @@ export async function POST(req: Request) {
         url: url,
         domain: domain,
         userId: user.id,
-        collectionId: collectionId || null,
+        collectionId: validCollectionId,
         type: 'markdown',
-           
         body: {
           create: {
             content: extracted.content,
