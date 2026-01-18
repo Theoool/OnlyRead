@@ -365,7 +365,11 @@ export default function Home() {
       if (!data.collection) throw new Error("Collection data missing");
 
       const articles = data.collection.articles;
-
+            console.log(
+              "articles",
+              articles
+            );
+            
       if (articles && articles.length > 0) {
         // Store articles in state
         setExpandedCollections(prev => new Map(prev).set(collectionId, articles));

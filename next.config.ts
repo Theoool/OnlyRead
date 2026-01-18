@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ['jsdom'],
   // Enable standalone output for Docker
   output: 'standalone',
   
