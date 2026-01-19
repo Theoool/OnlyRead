@@ -43,11 +43,11 @@ function formatRelative(ts: number) {
   const diff = Date.now() - ts;
   const m = Math.floor(diff / 60000);
   if (m < 1) return "刚刚";
-  if (m < 60) return `${m}m`;
+  if (m < 60) return `${m}分钟`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
+  if (h < 24) return `${h}小时`;
   const d = Math.floor(h / 24);
-  return `${d}d`;
+  return `${d}天`;
 }
 
 function isUrl(input: string) {
@@ -422,10 +422,10 @@ export default function Home() {
       setLoading(true);
       setError("");
       const res = await fetch(`/api/collections/${collectionId}`);
-      if (!res.ok) throw new Error("Failed to load collection");
+      if (!res.ok) throw new Error("加载合集失败");
       const data = await res.json();
 
-      if (!data.collection) throw new Error("Collection data missing");
+      if (!data.collection) throw new Error("合集数据缺失");
 
       const articles = data.collection.articles;
             console.log(
@@ -437,11 +437,11 @@ export default function Home() {
         // Store articles in state
         setExpandedCollections(prev => new Map(prev).set(collectionId, articles));
       } else {
-        setError("This book is empty");
+        setError("本书为空");
       }
     } catch (e) {
       console.error(e);
-      setError("Failed to open book");
+      setError("打开书籍失败");
     } finally {
       setLoading(false);
     }
@@ -514,7 +514,7 @@ export default function Home() {
                   className="flex items-center gap-2 px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
                 >
                   <User className="w-4 h-4" />
-                  Login
+                  登录
                 </button>
               )}
             </div>
@@ -531,21 +531,21 @@ export default function Home() {
               <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-100 dark:border-purple-900/30">
                 <div className="flex items-center gap-2 mb-1">
                   <Brain className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-                  <span className="text-xs font-medium text-purple-600 dark:text-purple-400">Due</span>
+                  <span className="text-xs font-medium text-purple-600 dark:text-purple-400">复习</span>
                 </div>
                 <div className="text-lg font-bold text-zinc-900 dark:text-white">{quickStats.dueCount}</div>
               </div>
               <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3 border border-orange-100 dark:border-orange-900/30">
                 <div className="flex items-center gap-2 mb-1">
                   <Flame className="w-3 h-3 text-orange-600 dark:text-orange-400" />
-                  <span className="text-xs font-medium text-orange-600 dark:text-orange-400">Streak</span>
+                  <span className="text-xs font-medium text-orange-600 dark:text-orange-400">连续打卡</span>
                 </div>
                 <div className="text-lg font-bold text-zinc-900 dark:text-white">{quickStats.currentStreak}</div>
               </div>
               <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-100 dark:border-blue-900/30">
                 <div className="flex items-center gap-2 mb-1">
                   <TrendingUp className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                  <span className="text-xs font-medium text-blue-600 dark:text-blue-400">Cards</span>
+                  <span className="text-xs font-medium text-blue-600 dark:text-blue-400">卡片</span>
                 </div>
                 <div className="text-lg font-bold text-zinc-900 dark:text-white">{quickStats.totalConcepts}</div>
               </div>
@@ -565,7 +565,7 @@ export default function Home() {
           <div className="flex-1 flex flex-col justify-center relative">
             {isDragging && (
               <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/50 dark:bg-black/50 backdrop-blur-sm rounded-xl border-2 border-dashed border-blue-500">
-                <div className="text-blue-500 font-mono font-bold animate-pulse">DROP FILE HERE</div>
+                <div className="text-blue-500 font-mono font-bold animate-pulse">释放文件</div>
               </div>
             )}
             <motion.div
@@ -577,7 +577,7 @@ export default function Home() {
               <textarea
                 ref={textareaRef}
                 className="w-full h-[30vh] md:h-[40vh] bg-transparent text-2xl md:text-4xl font-mono leading-tight outline-none resize-none placeholder:text-zinc-200 dark:placeholder:text-zinc-800"
-                placeholder="What do you want to read?"
+                placeholder="你想阅读什么？"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 disabled={loading}
@@ -596,7 +596,7 @@ export default function Home() {
                         exit={{ opacity: 0, x: -10 }}
                         className="text-xs font-mono text-zinc-400 px-2 py-1 bg-zinc-100 dark:bg-zinc-900 rounded"
                       >
-                        {isInputUrl ? "LINK DETECTED" : "PLAIN TEXT"}
+                        {isInputUrl ? "检测到链接" : "纯文本"}
                       </motion.span>
                     )}
                   </AnimatePresence>
@@ -629,7 +629,7 @@ export default function Home() {
                         className="h-8 px-3 rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-500 text-xs font-mono flex items-center gap-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
                       >
                         <FileText className="w-3 h-3" />
-                        IMPORT
+                        导入
                       </motion.button>
 
                       <motion.button
@@ -641,7 +641,7 @@ export default function Home() {
                         className="h-8 px-3 rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-500 text-xs font-mono flex items-center gap-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
                       >
                         <Clipboard className="w-3 h-3" />
-                        PASTE
+                        粘贴
                       </motion.button>
                     </>
                   )}
@@ -655,7 +655,7 @@ export default function Home() {
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
                       <>
-                        <span className="hidden md:inline font-medium text-sm">ENTER</span>
+                        <span className="hidden md:inline font-medium text-sm">进入</span>
                         <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                       </>
                     )}
@@ -687,7 +687,7 @@ export default function Home() {
                   )}
                >
                  <History className="w-3 h-3" />
-                 Articles
+                 文章
                </button>
                <button 
                   onClick={() => setViewMode('collections')}
@@ -697,7 +697,7 @@ export default function Home() {
                   )}
                >
                  <Library className="w-3 h-3" />
-                 Books
+                 书籍
                </button>
             </div>
             
@@ -705,29 +705,29 @@ export default function Home() {
                 {/* Stats Link */}
                 <a href="/stats" className="flex items-center gap-1 text-[10px] font-mono text-blue-500 hover:text-blue-600 transition-colors group">
                     <TrendingUp className="w-3 h-3" />
-                    STATS
+                    统计
                 </a>
 
                 {/* Review Entry */}
                 <a href="/review" className="flex items-center gap-1 text-[10px] font-mono text-purple-500 hover:text-purple-600 transition-colors group">
                     <Activity className="w-3 h-3 group-hover:animate-pulse" />
-                    REVIEW
+                    复习
                 </a>
 
                 {/* QA Entry */}
                 <a href="/qa" className="flex items-center gap-1 text-[10px] font-mono text-indigo-500 hover:text-indigo-600 transition-colors group">
                     <Sparkles className="w-3 h-3 group-hover:animate-pulse" />
-                    QA
+                    问答
                 </a>
 
                 {/* Search Link */}
                 <a href="/search" className="flex items-center gap-1 text-[10px] font-mono text-zinc-500 hover:text-zinc-600 transition-colors">
                     <Command className="w-3 h-3" />
-                    SEARCH
+                    搜索
                 </a>
 
                 <span className="text-[10px] font-mono text-zinc-400 border-l border-zinc-200 dark:border-zinc-800 pl-4">
-                    {viewMode === 'articles' ? articles.length : collections.length} RECORDS
+                    {viewMode === 'articles' ? articles.length : collections.length} 记录
                 </span>
             </div>
           </div>
@@ -811,7 +811,7 @@ export default function Home() {
                         <div className="w-12 h-12 rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center">
                           <ArrowRight className="w-5 h-5" />
                         </div>
-                        <p className="text-xs font-mono">WAITING FOR INPUT...</p>
+                        <p className="text-xs font-mono">等待输入...</p>
                       </div>
                     )}
                   </AnimatePresence>
@@ -852,7 +852,7 @@ export default function Home() {
                                               {collection.title}
                                           </h3>
                                           <p className="text-xs text-zinc-500 mt-1">
-                                              {collection.isLocal ? 'Local File' : `${collection._count?.articles || 0} chapters`} • {formatRelative(new Date(collection.updatedAt).getTime())}
+                                              {collection.isLocal ? '本地文件' : `${collection._count?.articles || 0} 章`} • {formatRelative(new Date(collection.updatedAt).getTime())}
                                           </p>
                                       </div>
                                   </div>
@@ -929,7 +929,7 @@ export default function Home() {
                               <div className="w-12 h-12 rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center">
                                   <Book className="w-5 h-5" />
                               </div>
-                              <p className="text-xs font-mono">NO BOOKS FOUND</p>
+                              <p className="text-xs font-mono">未找到书籍</p>
                           </div>
                       )}
                   </AnimatePresence>

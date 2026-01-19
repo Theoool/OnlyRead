@@ -65,7 +65,7 @@ export default function SearchPage() {
             >
               <ArrowLeft className="w-5 h-5 text-zinc-600 dark:text-zinc-400" />
             </button>
-            <h1 className="text-xl font-bold text-zinc-900 dark:text-white">Search</h1>
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-white">搜索</h1>
           </div>
 
           {/* Search Input */}
@@ -75,7 +75,7 @@ export default function SearchPage() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search concepts and articles..."
+              placeholder="搜索概念和文章..."
               className="w-full pl-12 pr-12 py-3 bg-zinc-100 dark:bg-zinc-800 border-2 border-transparent focus:border-black dark:focus:border-white rounded-xl outline-none transition-colors text-zinc-900 dark:text-white placeholder:text-zinc-400"
               autoFocus
             />
@@ -100,7 +100,7 @@ export default function SearchPage() {
                     : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                 }`}
               >
-                All
+                全部
               </button>
               <button
                 onClick={() => setType('concepts')}
@@ -110,7 +110,7 @@ export default function SearchPage() {
                     : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                 }`}
               >
-                Concepts
+                概念
               </button>
               <button
                 onClick={() => setType('articles')}
@@ -120,7 +120,7 @@ export default function SearchPage() {
                     : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                 }`}
               >
-                Articles
+                文章
               </button>
             </div>
           </div>
@@ -139,10 +139,10 @@ export default function SearchPage() {
           <div className="text-center py-12">
             <Search className="w-16 h-16 text-zinc-300 dark:text-zinc-700 mx-auto mb-4" />
             <h2 className="text-xl font-medium text-zinc-600 dark:text-zinc-400 mb-2">
-              Start searching
+              开始搜索
             </h2>
             <p className="text-zinc-400 dark:text-zinc-600">
-              Search through your concepts and articles
+              搜索你的概念和文章
             </p>
           </div>
         )}
@@ -152,7 +152,7 @@ export default function SearchPage() {
             {/* Results count */}
             <div className="mb-6">
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                Found {results.total} result{results.total !== 1 ? 's' : ''} for "{results.query}"
+                找到 {results.total} 个结果 关于 "{results.query}"
               </p>
             </div>
 
@@ -161,7 +161,7 @@ export default function SearchPage() {
               <div className="mb-8">
                 <h3 className="text-sm font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                   <Brain className="w-4 h-4" />
-                  Concepts ({results.concepts.length})
+                  概念 ({results.concepts.length})
                 </h3>
                 <div className="space-y-4">
                   {results.concepts.map((concept) => (
@@ -196,9 +196,9 @@ export default function SearchPage() {
                         {concept.snippet}
                       </p>
                       <div className="flex items-center gap-4 mt-4 text-xs text-zinc-400">
-                        <span>Reviewed {concept.reviewCount} times</span>
+                        <span>复习 {concept.reviewCount} 次</span>
                         <span>•</span>
-                        <span>Confidence: {concept.confidence}/5</span>
+                        <span>置信度: {concept.confidence}/5</span>
                       </div>
                     </motion.div>
                   ))}
@@ -211,7 +211,7 @@ export default function SearchPage() {
               <div>
                 <h3 className="text-sm font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                   <FileText className="w-4 h-4" />
-                  Articles ({results.articles.length})
+                  文章 ({results.articles.length})
                 </h3>
                 <div className="space-y-4">
                   {results.articles.map((article) => (
@@ -224,7 +224,7 @@ export default function SearchPage() {
                     >
                       <div className="flex items-start justify-between mb-2">
                         <h4 className="text-lg font-semibold text-zinc-900 dark:text-white flex-1">
-                          {article.title ? highlightMatch(article.title, query) : 'Untitled'}
+                          {article.title ? highlightMatch(article.title, query) : '无标题'}
                         </h4>
                         <span className="text-xs text-zinc-400 ml-4">
                           {article.progress || 0}%

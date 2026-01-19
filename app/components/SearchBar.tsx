@@ -34,7 +34,7 @@ interface SearchBarProps {
   className?: string
 }
 
-export function SearchBar({ placeholder = "Search... (Cmd+K)", className = "" }: SearchBarProps) {
+export function SearchBar({ placeholder = "搜索... (Cmd+K)", className = "" }: SearchBarProps) {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -186,7 +186,7 @@ export function SearchBar({ placeholder = "Search... (Cmd+K)", className = "" }:
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search concepts and articles..."
+                  placeholder="搜索概念和文章..."
                   className="flex-1 bg-transparent outline-none text-zinc-900 dark:text-white placeholder:text-zinc-400"
                 />
                 {query && (
@@ -216,7 +216,7 @@ export function SearchBar({ placeholder = "Search... (Cmd+K)", className = "" }:
                   <div className="py-12 text-center">
                     <Search className="w-12 h-12 text-zinc-300 dark:text-zinc-700 mx-auto mb-4" />
                     <p className="text-zinc-500 dark:text-zinc-400">
-                      Start typing to search...
+                      输入以开始搜索...
                     </p>
                   </div>
                 )}
@@ -224,7 +224,7 @@ export function SearchBar({ placeholder = "Search... (Cmd+K)", className = "" }:
                 {!isLoading && query && results && results.total === 0 && (
                   <div className="py-12 text-center">
                     <p className="text-zinc-500 dark:text-zinc-400">
-                      No results found for "{query}"
+                      未找到结果："{query}"
                     </p>
                   </div>
                 )}
@@ -234,7 +234,7 @@ export function SearchBar({ placeholder = "Search... (Cmd+K)", className = "" }:
                     {results.concepts.length > 0 && (
                       <div className="px-4 py-2">
                         <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-                          Concepts
+                          概念
                         </p>
                         {results.concepts.map((concept, index) => (
                           <button
@@ -300,9 +300,9 @@ export function SearchBar({ placeholder = "Search... (Cmd+K)", className = "" }:
                 <div className="px-6 py-3 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
                   <div className="flex items-center justify-between text-xs text-zinc-400">
                     <div className="flex items-center gap-4">
-                      <span>↑↓ to navigate</span>
-                      <span>↵ to select</span>
-                      <span>ESC to close</span>
+                      <span>↑↓ 导航</span>
+                      <span>↵ 选择</span>
+                      <span>ESC 关闭</span>
                     </div>
                     <button
                       onClick={() => {
@@ -311,7 +311,7 @@ export function SearchBar({ placeholder = "Search... (Cmd+K)", className = "" }:
                       }}
                       className="hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
                     >
-                      View all {results.total} results →
+                      查看所有 {results.total} 结果 →
                     </button>
                   </div>
                 </div>

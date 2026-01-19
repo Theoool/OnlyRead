@@ -5,16 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Mail,
-  Lock,
   User,
   Github,
   Loader2,
-  Eye,
-  EyeOff,
   AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/store/useAuthStore";
-import { createClient } from "@/lib/supabase/client";
 
 type Mode = "signin" | "signup";
 
@@ -29,17 +26,18 @@ export default function AuthPage() {
 function AuthContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setUser, setToken, isAuthenticated } = useAuthStore();
+  const { isAuthenticated, setUser, setToken } = useAuthStore();
 
   const [mode, setMode] = useState<Mode>("signin");
+  const [useOtp, setUseOtp] = useState(false); // 新增：是否使用验证码模式
   const [formData, setFormData] = useState({
     email: "",
-    password: "",
     fullName: "",
+    otp: "", // 新增：OTP 字段
   });
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     // Redirect if already authenticated
@@ -60,16 +58,45 @@ function AuthContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSuccessMessage("");
     setLoading(true);
 
     try {
+      if (useOtp) {
+        // OTP 验证流程
+        const res = await fetch("/api/auth/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: formData.email,
+            token: formData.otp,
+            type: "email",
+          }),
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+          throw new Error(data.error || "验证失败，请检查验证码是否正确");
+        }
+        
+        // 登录成功
+        setUser(data.user);
+        setToken(data.session?.access_token || null);
+        useAuthStore.getState().setDataMode("cloud");
+        
+        const redirect = searchParams.get("redirect");
+        router.push(redirect || "/");
+        return;
+      }
+
+      // Magic Link 发送流程
       const endpoint = mode === "signin" ? "/api/auth/signin" : "/api/auth/signup";
       const payload =
         mode === "signin"
-          ? { email: formData.email, password: formData.password }
+          ? { email: formData.email }
           : {
               email: formData.email,
-              password: formData.password,
               fullName: formData.fullName,
             };
 
@@ -82,20 +109,14 @@ function AuthContent() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Authentication failed");
+        throw new Error(data.error || "请求失败");
       }
 
-      // Update auth state
-      setUser(data.user);
-      setToken(data.session?.access_token || null);
-
-      // Switch to cloud mode
-      useAuthStore.getState().setDataMode("cloud");
-
-      // Redirect to original destination or home
-      const redirect = searchParams.get("redirect");
-      router.push(redirect || "/");
+      setSuccessMessage("登录链接已发送至您的邮箱，请查收！");
+      // 显示切换到 OTP 模式的选项
+      setUseOtp(true);
     } catch (err: any) {
+      console.error("Auth error:", err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -111,6 +132,7 @@ function AuthContent() {
   const toggleMode = () => {
     setMode((prev) => (prev === "signin" ? "signup" : "signin"));
     setError("");
+    setSuccessMessage("");
   };
 
   return (
@@ -135,8 +157,8 @@ function AuthContent() {
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             {mode === "signin"
-              ? "登录以同步您的学习数据"
-              : "开始您的深度学习之旅"}
+              ? "无密码登录，安全快捷"
+              : "开启您的深度学习之旅"}
           </p>
         </motion.div>
 
@@ -158,6 +180,17 @@ function AuthContent() {
               >
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 {error}
+              </motion.div>
+            )}
+            {successMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-2 text-green-600 dark:text-green-400 text-sm"
+              >
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                {successMessage}
               </motion.div>
             )}
           </AnimatePresence>
@@ -238,55 +271,23 @@ function AuthContent() {
               </div>
             </div>
 
-            {/* Password */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                密码
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-zinc-400" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
-                  placeholder="••••••••"
-                  required
-                  minLength={6}
-                  className="w-full pl-11 pr-12 py-3 rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all"
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                  disabled={loading}
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
-                </button>
-              </div>
-            </div>
-
             {/* Submit Button */}
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               type="submit"
-              disabled={loading}
+              disabled={loading || !!successMessage}
               className="w-full py-3 px-4 rounded-lg bg-black dark:bg-white text-white dark:text-black font-medium flex items-center justify-center gap-2 hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6"
             >
               {loading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  {mode === "signin" ? "登录中..." : "注册中..."}
+                  发送中...
                 </>
+              ) : successMessage ? (
+                "已发送链接"
               ) : (
-                mode === "signin" ? "登录" : "注册"
+                "发送登录链接"
               )}
             </motion.button>
           </form>

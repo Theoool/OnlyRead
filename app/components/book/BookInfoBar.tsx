@@ -49,7 +49,7 @@ export function BookInfoBar({
         {/* 右侧：进度条 */}
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Book进度</div>
+            <div className="text-[10px] text-zinc-500 uppercase tracking-wider">全书进度</div>
             <div className="text-lg font-mono font-bold text-zinc-900 dark:text-zinc-100">
               {Math.round(bookProgress)}%
             </div>

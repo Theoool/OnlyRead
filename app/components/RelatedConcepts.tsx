@@ -93,7 +93,7 @@ export function RelatedConcepts({ currentText, onConceptClick }: RelatedConcepts
           
           {!loading && related.length === 0 && (
             <p className="text-xs text-zinc-400 text-center py-2">
-              No direct connections found.
+              未发现直接关联。
             </p>
           )}
         </div>

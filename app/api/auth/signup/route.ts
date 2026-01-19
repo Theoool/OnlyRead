@@ -1,61 +1,40 @@
 import { createClient } from '@/lib/supabase/server'
-import { prisma } from '@/lib/infrastructure/database/prisma'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
   try {
-    const { email, password, fullName } = await req.json()
+    const { email, fullName } = await req.json()
 
-    if (!email || !password) {
+    if (!email) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'Email is required' },
         { status: 400 }
       )
     }
 
     const supabase = await createClient()
 
-    // Sign up user with Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    // Sign up with Magic Link (OTP)
+    // We use signInWithOtp for both sign up and sign in
+    const { error } = await supabase.auth.signInWithOtp({
       email,
-      password,
       options: {
+        emailRedirectTo: `${new URL(req.url).origin}/auth/callback`,
         data: {
           full_name: fullName,
         },
       },
     })
 
-    if (authError) {
+    if (error) {
       return NextResponse.json(
-        { error: authError.message },
+        { error: error.message },
         { status: 400 }
       )
     }
 
-    if (!authData.user) {
-      return NextResponse.json(
-        { error: 'Failed to create user' },
-        { status: 500 }
-      )
-    }
-
-    // Create user profile in our database
-    const user = await prisma.user.create({
-      data: {
-        id: authData.user.id,
-        email: authData.user.email!,
-        fullName: fullName || authData.user.user_metadata?.full_name,
-        avatarUrl: authData.user.user_metadata?.avatar_url,
-      },
-    })
-
     return NextResponse.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-      },
+      message: 'Check your email for the login link',
     })
   } catch (error: any) {
     console.error('Signup error:', error)

@@ -39,7 +39,7 @@ export function MigrationCheck({ children }: { children: React.ReactNode }) {
       <div className="h-screen flex items-center justify-center bg-zinc-50 dark:bg-black">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-black dark:border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-zinc-500 dark:text-zinc-400">Checking data...</p>
+          <p className="text-zinc-500 dark:text-zinc-400">正在检查数据...</p>
         </div>
       </div>
     )

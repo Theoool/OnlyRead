@@ -238,7 +238,7 @@ export function EpubReader({ book }: EpubReaderProps) {
         <div className="flex items-center gap-6 text-[10px] font-mono text-zinc-400 uppercase tracking-widest bg-white/50 dark:bg-black/50 backdrop-blur px-6 py-2 rounded-full border border-zinc-100 dark:border-zinc-900/50">
           <span className="flex items-center gap-1.5">
             <span className="w-1 h-1 rounded-full bg-zinc-400" />
-            Epub Native Reader
+            Epub 原生阅读器
           </span>
         </div>
       </motion.footer>

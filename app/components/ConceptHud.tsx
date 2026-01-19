@@ -41,12 +41,12 @@ export function ConceptHud({ cards, onTermClick }: ConceptHudProps) {
       <div className="absolute top-full right-0 mt-2 w-48 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-right z-50">
         <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-100 dark:border-zinc-800 overflow-hidden p-1">
             <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800/50">
-                <p className="text-[10px] uppercase tracking-wider text-zinc-400 font-mono">Collected Concepts</p>
+                <p className="text-[10px] uppercase tracking-wider text-zinc-400 font-mono">已收集概念</p>
             </div>
             
             {count === 0 ? (
                 <div className="p-4 text-center">
-                    <p className="text-xs text-zinc-400 italic">No concepts collected yet.</p>
+                    <p className="text-xs text-zinc-400 italic">暂无收集概念。</p>
                 </div>
             ) : (
                 <div className="max-h-[200px] overflow-y-auto py-1">

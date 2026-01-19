@@ -42,9 +42,9 @@ if (!isOpen) {
         className="w-full my-4 p-4 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center gap-3 text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-800/80 transition-colors group"
       >
         <ImageIcon className="w-4 h-4" />
-        <span className="text-xs font-mono">Image: {alt || "Hidden"}</span>
+        <span className="text-xs font-mono">图片: {alt || "已隐藏"}</span>
         <span className="text-xs text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors ml-auto flex items-center gap-1">
-          <Eye className="w-3 h-3" /> Show
+          <Eye className="w-3 h-3" /> 显示
         </span>
       </button>
     );
@@ -102,7 +102,7 @@ if (!isOpen) {
       <button 
         onClick={() => setIsOpen(false)}
         className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-        title="Hide Image"
+        title="隐藏图片"
       >
         <EyeOff className="w-3 h-3" />
       </button>
@@ -592,7 +592,7 @@ function ReadContent() {
       <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-black">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-zinc-400" />
-          <p className="text-zinc-500 dark:text-zinc-400">Loading article...</p>
+          <p className="text-zinc-500 dark:text-zinc-400">正在加载文章...</p>
         </div>
       </div>
     );
@@ -940,15 +940,15 @@ function ReadContent() {
         <div className="flex items-center gap-6 text-[10px] font-mono text-zinc-400 uppercase tracking-widest bg-white/50 dark:bg-black/50 backdrop-blur px-6 py-2 rounded-full border border-zinc-100 dark:border-zinc-900/50">
           <span className="flex items-center gap-1.5">
             <span className="w-1 h-1 rounded-full bg-zinc-400" />
-            Space to Read
+            空格阅读
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-1 h-1 rounded-full bg-zinc-400" />
-            Left to Back
+            左键回退
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-1 h-1 rounded-full bg-zinc-400" />
-            ESC to Exit
+            ESC 退出
           </span>
         </div>
       </motion.footer>

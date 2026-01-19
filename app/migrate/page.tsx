@@ -160,16 +160,16 @@ export default function MigratePage() {
         >
           <Check className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-white mb-2">
-            No Local Data Found
+            未找到本地数据
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400 mb-6">
-            You're all set! No migration needed.
+            一切准备就绪！无需迁移。
           </p>
           <button
             onClick={() => router.push('/')}
             className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium"
           >
-            Continue to App
+            继续进入应用
           </button>
         </motion.div>
       </div>
@@ -188,21 +188,21 @@ export default function MigratePage() {
             <Cloud className="w-8 h-8 text-purple-600 dark:text-purple-400" />
           </div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-white mb-2">
-            Welcome to Cloud Sync!
+            欢迎使用云同步！
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400">
-            We found {totalItems} local {totalItems === 1 ? 'item' : 'items'} on your device.
+            我们在您的设备上发现了 {totalItems} 个本地项目。
           </p>
         </div>
 
         {/* Local Data Summary */}
         <div className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-4 mb-6 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-zinc-600 dark:text-zinc-400">Articles</span>
+            <span className="text-zinc-600 dark:text-zinc-400">文章</span>
             <span className="font-medium text-zinc-900 dark:text-white">{localData.articles.length}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-zinc-600 dark:text-zinc-400">Concepts</span>
+            <span className="text-zinc-600 dark:text-zinc-400">概念</span>
             <span className="font-medium text-zinc-900 dark:text-white">{localData.concepts.length}</span>
           </div>
         </div>
@@ -216,34 +216,34 @@ export default function MigratePage() {
             >
               <div className="flex items-center gap-2 text-green-600 dark:text-green-400 mb-4">
                 <Check className="w-5 h-5" />
-                <span className="font-semibold">Migration Complete!</span>
+                <span className="font-semibold">迁移完成！</span>
               </div>
 
               <div className="space-y-3 mb-6">
                 <div className="text-sm text-zinc-600 dark:text-zinc-400">
                   <div className="flex justify-between">
-                    <span>Articles:</span>
+                    <span>文章:</span>
                     <span className="text-green-600 dark:text-green-400">
-                      {result.articles.synced}/{result.articles.total} synced
+                      {result.articles.synced}/{result.articles.total} 已同步
                     </span>
                   </div>
                   {result.articles.errors > 0 && (
                     <div className="text-red-500 text-xs mt-1">
-                      {result.articles.errors} failed
+                      {result.articles.errors} 失败
                     </div>
                   )}
                 </div>
 
                 <div className="text-sm text-zinc-600 dark:text-zinc-400">
                   <div className="flex justify-between">
-                    <span>Concepts:</span>
+                    <span>概念:</span>
                     <span className="text-green-600 dark:text-green-400">
-                      {result.concepts.synced}/{result.concepts.total} synced
+                      {result.concepts.synced}/{result.concepts.total} 已同步
                     </span>
                   </div>
                   {result.concepts.errors > 0 && (
                     <div className="text-red-500 text-xs mt-1">
-                      {result.concepts.errors} failed
+                      {result.concepts.errors} 失败
                     </div>
                   )}
                 </div>
@@ -254,13 +254,13 @@ export default function MigratePage() {
                   onClick={handleClearLocal}
                   className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
                 >
-                  Clear Local Data & Continue
+                  清除本地数据并继续
                 </button>
                 <button
                   onClick={() => router.push('/')}
                   className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg font-medium transition-colors"
                 >
-                  Keep Local Data & Continue
+                  保留本地数据并继续
                 </button>
               </div>
             </motion.div>
@@ -272,16 +272,16 @@ export default function MigratePage() {
             >
               <div className="flex items-center gap-2 text-red-600 dark:text-red-400 mb-2">
                 <X className="w-5 h-5" />
-                <span className="font-semibold">Migration Failed</span>
+                <span className="font-semibold">迁移失败</span>
               </div>
               <p className="text-zinc-600 dark:text-zinc-400 text-sm mb-4">
-                Something went wrong. Please try again or contact support.
+                出错了，请重试或联系支持。
               </p>
               <button
                 onClick={() => router.push('/')}
                 className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg font-medium transition-colors"
               >
-                Continue Anyway
+                仍然继续
               </button>
             </motion.div>
           )

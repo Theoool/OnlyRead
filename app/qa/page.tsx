@@ -111,7 +111,7 @@ export default function QAPage() {
           </button>
           <h1 className="font-bold text-sm tracking-wider uppercase flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-purple-500" />
-            Knowledge QA
+            知识问答
           </h1>
           <div className="w-9" /> {/* Spacer */}
         </div>
@@ -126,7 +126,7 @@ export default function QAPage() {
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask anything about your knowledge base..."
+              placeholder="询问关于你知识库的任何问题..."
               className="w-full min-h-[120px] p-6 pr-16 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all resize-none text-lg leading-relaxed placeholder:text-zinc-400"
             />
             <div className="absolute bottom-4 right-4">
@@ -144,7 +144,7 @@ export default function QAPage() {
             </div>
           </div>
           <div className="mt-2 text-xs text-zinc-400 text-right font-mono">
-            Cmd + Enter to send
+            Cmd + Enter 发送
           </div>
         </section>
 
@@ -252,7 +252,7 @@ export default function QAPage() {
               <div className="bg-zinc-100/50 dark:bg-zinc-900/30 rounded-2xl p-6">
                  <h3 className="text-xs font-bold uppercase text-zinc-400 mb-4 flex items-center gap-2">
                     <BookOpen className="w-3 h-3" />
-                    Source Evidence ({result.sources.length})
+                    来源证据 ({result.sources.length})
                   </h3>
                   <div className="space-y-3">
                     {result.sources.map((source, idx) => (
@@ -262,7 +262,7 @@ export default function QAPage() {
                              {source.title}
                            </h4>
                            <span className="text-[10px] font-mono text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
-                             {Math.round(source.similarity * 100)}% Match
+                             {Math.round(source.similarity * 100)}% 匹配度
                            </span>
                         </div>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed">

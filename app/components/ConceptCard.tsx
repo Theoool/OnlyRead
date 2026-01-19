@@ -161,7 +161,7 @@ export function ConceptCard({ selection, position, savedData, onSave, onClose }:
             className="p-6 flex flex-col items-center justify-center gap-3 text-zinc-400"
           >
             <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
-            <span className="text-xs font-medium tracking-wide">AI Thinking...</span>
+            <span className="text-xs font-medium tracking-wide">AI 思考中...</span>
           </motion.div>
         )}
 
@@ -176,13 +176,13 @@ export function ConceptCard({ selection, position, savedData, onSave, onClose }:
                     <h3 className="font-serif text-lg font-medium text-zinc-900 dark:text-zinc-100 leading-tight">
                         {term}
                     </h3>
-                    <p className="text-xs text-zinc-400 mt-0.5 font-mono uppercase tracking-wider">Concept</p>
+                    <p className="text-xs text-zinc-400 mt-0.5 font-mono uppercase tracking-wider">概念</p>
                 </div>
                 <div className="flex gap-1">
-                    <button onClick={() => setMode("edit")} className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors" title="Write Note">
+                    <button onClick={() => setMode("edit")} className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors" title="写笔记">
                         <PenLine className="w-4 h-4" />
                     </button>
-                    <button onClick={handleQuickCollect} className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-purple-500 transition-colors" title="Quick Collect">
+                    <button onClick={handleQuickCollect} className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-purple-500 transition-colors" title="快速收集">
                         <Bookmark className="w-4 h-4" />
                     </button>
                 </div>
@@ -218,7 +218,7 @@ export function ConceptCard({ selection, position, savedData, onSave, onClose }:
                     onClick={() => editStep === 1 ? setMode("preview") : setEditStep(1)} 
                     className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
                 >
-                    <ArrowLeft className="w-3 h-3" /> {editStep === 1 ? "Back" : "Definition"}
+                    <ArrowLeft className="w-3 h-3" /> {editStep === 1 ? "返回" : "定义"}
                 </button>
                 <span className="text-xs font-medium text-zinc-900 dark:text-zinc-100">{term}</span>
             </div>
@@ -231,7 +231,7 @@ export function ConceptCard({ selection, position, savedData, onSave, onClose }:
                         className="space-y-2"
                     >
                          <div className="flex justify-between items-center">
-                             <label className="text-xs font-medium text-zinc-500 block">Definition</label>
+                             <label className="text-xs font-medium text-zinc-500 block">定义</label>
                              <span className={`text-[10px] ${myDefinition.length >= 20 ? 'text-green-500' : 'text-zinc-400'}`}>
                                  {myDefinition.length}/20
                              </span>
@@ -243,7 +243,7 @@ export function ConceptCard({ selection, position, savedData, onSave, onClose }:
                             onPaste={(e) => {
                                 e.preventDefault();
                             }}
-                            placeholder="Summarize in your own words (no pasting)..."
+                            placeholder="用自己的话总结（禁止粘贴）..."
                             className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl p-3 text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none resize-none h-24 transition-all"
                         />
                          <button 
@@ -251,7 +251,7 @@ export function ConceptCard({ selection, position, savedData, onSave, onClose }:
                             disabled={myDefinition.length < 20}
                             className="w-full py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black rounded-xl text-sm font-medium hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
-                            Next <ChevronRight className="w-4 h-4" />
+                            下一步 <ChevronRight className="w-4 h-4" />
                         </button>
                     </motion.div>
                 ) : (
@@ -262,7 +262,7 @@ export function ConceptCard({ selection, position, savedData, onSave, onClose }:
                     >
                         <div className="space-y-2">
                              <div className="flex justify-between items-center">
-                                 <label className="text-xs font-medium text-zinc-500 block">Example</label>
+                                 <label className="text-xs font-medium text-zinc-500 block">例子</label>
                                  <span className={`text-[10px] ${myExample.length >= 20 ? 'text-green-500' : 'text-zinc-400'}`}>
                                      {myExample.length}/20
                                  </span>
@@ -274,14 +274,14 @@ export function ConceptCard({ selection, position, savedData, onSave, onClose }:
                                 onPaste={(e) => {
                                     e.preventDefault();
                                 }}
-                                placeholder="Give a concrete example (no pasting)..."
+                                placeholder="举一个具体的例子（禁止粘贴）..."
                                 className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl p-3 text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none resize-none h-24 transition-all"
                             />
                         </div>
 
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
-                                <label className="text-xs font-medium text-zinc-500">Confidence</label>
+                                <label className="text-xs font-medium text-zinc-500">掌握程度</label>
                                 <span className="text-xs text-purple-600 font-medium">{confidence}/5</span>
                             </div>
                             <input 
@@ -296,7 +296,7 @@ export function ConceptCard({ selection, position, savedData, onSave, onClose }:
                             disabled={myExample.length < 20}
                             className="w-full py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black rounded-xl text-sm font-medium hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
-                            <Check className="w-4 h-4" /> Complete
+                            <Check className="w-4 h-4" /> 完成
                         </button>
                     </motion.div>
                 )}
@@ -316,7 +316,7 @@ export function ConceptCard({ selection, position, savedData, onSave, onClose }:
                         {term}
                     </h3>
                     <div className="flex items-center gap-2 mt-0.5">
-                        <p className="text-xs text-green-500 font-mono uppercase tracking-wider">Collected</p>
+                        <p className="text-xs text-green-500 font-mono uppercase tracking-wider">已收集</p>
                         <div className="flex gap-0.5">
                             {[...Array(5)].map((_, i) => (
                                 <div key={i} className={`w-1 h-1 rounded-full ${i < confidence ? 'bg-purple-500' : 'bg-zinc-200 dark:bg-zinc-700'}`} />
@@ -325,7 +325,7 @@ export function ConceptCard({ selection, position, savedData, onSave, onClose }:
                     </div>
                 </div>
                 <div className="flex gap-1">
-                    <button onClick={() => setMode("edit")} className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors" title="Edit Note">
+                    <button onClick={() => setMode("edit")} className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors" title="编辑笔记">
                         <PenLine className="w-4 h-4" />
                     </button>
                     <button onClick={onClose} className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-red-500 transition-colors">

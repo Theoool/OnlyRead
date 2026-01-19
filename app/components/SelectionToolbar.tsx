@@ -74,7 +74,7 @@ export function SelectionToolbar({ onActivate, disabled }: SelectionToolbarProps
         className="group flex items-center gap-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black px-3 py-1.5 rounded-full shadow-lg hover:scale-105 transition-transform active:scale-95"
       >
         <Sparkles className="w-3 h-3 text-purple-400 group-hover:animate-pulse" />
-        <span className="text-xs font-medium">Concept</span>
+        <span className="text-xs font-medium">概念</span>
       </button>
     </motion.div>
   );

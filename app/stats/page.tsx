@@ -40,7 +40,7 @@ export default function StatsPage() {
       <div className="h-screen flex items-center justify-center bg-zinc-50 dark:bg-black">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-black dark:border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-zinc-500 dark:text-zinc-400">Loading stats...</p>
+          <p className="text-zinc-500 dark:text-zinc-400">加载统计数据...</p>
         </div>
       </div>
     )
@@ -55,10 +55,10 @@ export default function StatsPage() {
           className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white mb-4 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Home
+          返回首页
         </button>
-        <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">Learning Statistics</h1>
-        <p className="text-zinc-500 dark:text-zinc-400 mt-2">Track your learning journey</p>
+        <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">学习统计</h1>
+        <p className="text-zinc-500 dark:text-zinc-400 mt-2">追踪你的学习历程</p>
       </header>
 
       <main className="max-w-7xl mx-auto space-y-6">
@@ -78,7 +78,7 @@ export default function StatsPage() {
             <div className="text-3xl font-bold text-zinc-900 dark:text-white">
               {learning?.totalConcepts || 0}
             </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Total Concepts</div>
+            <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">总概念数</div>
           </motion.div>
 
           {/* Total Reviews */}
@@ -96,7 +96,7 @@ export default function StatsPage() {
             <div className="text-3xl font-bold text-zinc-900 dark:text-white">
               {learning?.totalReviews || 0}
             </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Total Reviews</div>
+            <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">总复习次数</div>
           </motion.div>
 
           {/* Reading Time */}
@@ -114,7 +114,7 @@ export default function StatsPage() {
             <div className="text-3xl font-bold text-zinc-900 dark:text-white">
               {learning ? formatTime(learning.totalReadingTime) : '0m'}
             </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Total Reading Time</div>
+            <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">总阅读时间</div>
           </motion.div>
 
           {/* Current Streak */}
@@ -132,7 +132,7 @@ export default function StatsPage() {
             <div className="text-3xl font-bold text-zinc-900 dark:text-white">
               {learning?.currentStreak || 0}
             </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Day Streak 🔥</div>
+            <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">连续打卡 🔥</div>
           </motion.div>
         </div>
 
@@ -146,7 +146,7 @@ export default function StatsPage() {
           >
             <h2 className="text-xl font-bold text-zinc-900 dark:text-white mb-6 flex items-center gap-2">
               <Target className="w-5 h-5" />
-              Concept Mastery
+              概念掌握度
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {/* New */}
@@ -154,7 +154,7 @@ export default function StatsPage() {
                 <div className="text-3xl font-bold text-zinc-400">
                   {mastery.breakdown.new.count}
                 </div>
-                <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">New</div>
+                <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">新学</div>
                 <div className="text-xs text-zinc-400 mt-1">
                   {mastery.breakdown.new.percentage}%
                 </div>
@@ -164,7 +164,7 @@ export default function StatsPage() {
                 <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
                   {mastery.breakdown.learning.count}
                 </div>
-                <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Learning</div>
+                <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">学习中</div>
                 <div className="text-xs text-zinc-400 mt-1">
                   {mastery.breakdown.learning.percentage}%
                 </div>
@@ -174,7 +174,7 @@ export default function StatsPage() {
                 <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                   {mastery.breakdown.mature.count}
                 </div>
-                <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Mature</div>
+                <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">熟练</div>
                 <div className="text-xs text-zinc-400 mt-1">
                   {mastery.breakdown.mature.percentage}%
                 </div>
@@ -184,7 +184,7 @@ export default function StatsPage() {
                 <div className="text-3xl font-bold text-red-600 dark:text-red-400">
                   {mastery.breakdown.lapsed.count}
                 </div>
-                <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Lapsed</div>
+                <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">遗忘</div>
                 <div className="text-xs text-zinc-400 mt-1">
                   {mastery.breakdown.lapsed.percentage}%
                 </div>
@@ -192,7 +192,7 @@ export default function StatsPage() {
             </div>
             <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-zinc-500 dark:text-zinc-400">Mastery Rate</span>
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">掌握率</span>
                 <span className="text-lg font-bold text-zinc-900 dark:text-white">
                   {mastery.masteryRate}%
                 </span>
@@ -212,10 +212,10 @@ export default function StatsPage() {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
-                Review Activity
+                复习活跃度
               </h2>
               <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                {heatmap.activeDays} active days
+                {heatmap.activeDays} 活跃天数
               </div>
             </div>
 
@@ -231,12 +231,12 @@ export default function StatsPage() {
             </div>
 
             <div className="flex items-center justify-end gap-2 mt-4 text-xs text-zinc-400">
-              <span>Less</span>
+              <span>少</span>
               <div className="w-3 h-3 bg-zinc-100 dark:bg-zinc-800 rounded-sm" />
               <div className="w-3 h-3 bg-green-200 dark:bg-green-900 rounded-sm" />
               <div className="w-3 h-3 bg-green-400 dark:bg-green-700 rounded-sm" />
               <div className="w-3 h-3 bg-green-500 dark:bg-green-600 rounded-sm" />
-              <span>More</span>
+              <span>多</span>
             </div>
           </motion.div>
         )}
@@ -256,7 +256,7 @@ export default function StatsPage() {
                 <div className="text-2xl font-bold text-zinc-900 dark:text-white">
                   {learning?.totalArticles || 0}
                 </div>
-                <div className="text-sm text-zinc-500 dark:text-zinc-400">Articles Read</div>
+                <div className="text-sm text-zinc-500 dark:text-zinc-400">已读文章</div>
               </div>
             </div>
           </div>
@@ -269,7 +269,7 @@ export default function StatsPage() {
                 <div className="text-2xl font-bold text-zinc-900 dark:text-white">
                   {learning?.completedArticles || 0}
                 </div>
-                <div className="text-sm text-zinc-500 dark:text-zinc-400">Completed</div>
+                <div className="text-sm text-zinc-500 dark:text-zinc-400">已完成</div>
               </div>
             </div>
           </div>
@@ -282,7 +282,7 @@ export default function StatsPage() {
                 <div className="text-2xl font-bold text-zinc-900 dark:text-white">
                   {mastery?.dueCount || 0}
                 </div>
-                <div className="text-sm text-zinc-500 dark:text-zinc-400">Due for Review</div>
+                <div className="text-sm text-zinc-500 dark:text-zinc-400">待复习</div>
               </div>
             </div>
           </div>
