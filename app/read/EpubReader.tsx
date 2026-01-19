@@ -29,18 +29,7 @@ export function EpubReader({ book }: EpubReaderProps) {
   const { concepts, addConcept } = useConceptStore();
   const [activeCard, setActiveCard] = useState<{ x: number; y: number; term: string; savedData?: ConceptData } | null>(null);
 
-  // Clean up Blob URL (Safe for Strict Mode)
-  // We don't revoke immediately on unmount because Strict Mode will unmount/remount quickly,
-  // causing the URL to be invalid on the second mount.
-  // We rely on the browser's GC or book change to clear.
-  /*
-  const url = useMemo(() => {
-    if (!book.fileData) return null;
-    return URL.createObjectURL(new Blob([book.fileData], { type: 'application/epub+zip' }));
-  }, [book.fileData]);
-  */
 
-  // Styles Injection
   const updateTheme = useCallback((rendition: any) => {
     if (!rendition) return;
     const isDark = theme === 'dark';
@@ -212,7 +201,7 @@ export function EpubReader({ book }: EpubReaderProps) {
                       const rect = range.getBoundingClientRect();
                       
                       // Calculate absolute position relative to viewport
-                      const iframe = rendition.manager.container.querySelector('iframe');
+                      const iframe = (rendition as any).manager.container.querySelector('iframe');
                       let x = rect.left;
                       let y = rect.top;
                       
