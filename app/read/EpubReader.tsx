@@ -189,9 +189,10 @@ export function EpubReader({ book }: EpubReaderProps) {
        </header>
 
        {/* Reader Area */}
-       <div className="flex-1 w-full h-full relative z-10">
+       <div className="flex-1 w-full h-full  relative z-10">
            <EpubView
-              style={{ height: '100vh' }}
+           
+           
               url={book.fileData}
               location={location}
               locationChanged={(loc: string | number) => setLocation(loc)}

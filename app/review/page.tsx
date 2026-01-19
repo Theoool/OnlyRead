@@ -152,7 +152,7 @@ export default function ReviewPage() {
                     {!isFlipped ? (
                         <div className="space-y-6">
                             <p className="text-zinc-400 dark:text-zinc-500 italic text-lg">
-                                "Recall the definition in your mind..."
+                                Recall the definition in your mind...
                             </p>
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
