@@ -34,6 +34,8 @@ import { useRouter } from 'next/navigation';
 import { useArticles, useSaveArticle } from "@/lib/hooks/use-articles";
 import { useCollections } from "@/lib/hooks/use-collections";
 import { ArticleListSkeleton } from "@/app/components/ui/skeleton";
+import { db } from "@/lib/db";
+import { useLiveQuery } from "dexie-react-hooks";
 
 function formatRelative(ts: number) {
   const diff = Date.now() - ts;
@@ -87,9 +89,20 @@ export default function Home() {
   const [displayLimit, setDisplayLimit] = useState(20);
   const displayedArticles = useMemo(() => sortedArticles.slice(0, displayLimit), [sortedArticles, displayLimit]);
 
+  const localBooks = useLiveQuery(() => db.books.toArray()) || [];
+
   const sortedCollections = useMemo(() => {
-    return [...collections].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [collections]);
+    const remote = collections.map((c: any) => ({ ...c, isLocal: false }));
+    const local = localBooks.map(b => ({
+      id: b.id,
+      title: b.title,
+      updatedAt: new Date(b.addedAt).toISOString(),
+      _count: { articles: 1 },
+      isLocal: true,
+      format: b.format
+    }));
+    return [...remote, ...local].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  }, [collections, localBooks]);
 
   // Quick stats state
   const [quickStats, setQuickStats] = useState<{
@@ -205,6 +218,26 @@ export default function Home() {
 
       if (!isEpub && !isPdf && !isMd && !isTxt) {
         throw new Error("不支持的文件格式。请上传 .epub, .pdf, .md, 或 .txt");
+      }
+
+      // Local Handling for EPUB/PDF
+      if (isEpub || isPdf) {
+          const arrayBuffer = await file.arrayBuffer();
+          const id = crypto.randomUUID();
+          
+          await db.books.add({
+            id,
+            title: file.name.replace(/\.(epub|pdf)$/i, ''),
+            author: 'Local File',
+            fileData: arrayBuffer,
+            format: isEpub ? 'epub' : 'pdf',
+            addedAt: Date.now(),
+            progress: 0
+          });
+          
+          setViewMode('collections');
+          setLoading(false);
+          return;
       }
 
       // 2. Upload to Supabase Storage
@@ -766,6 +799,10 @@ export default function Home() {
                               <div
                                 className="flex justify-between items-start cursor-pointer"
                                 onClick={() => {
+                                  if (collection.isLocal) {
+                                     router.push(`/read?localId=${collection.id}`);
+                                     return;
+                                  }
                                   const newExpandedId = expandedCollectionId === collection.id ? null : collection.id;
                                   setExpandedCollectionId(newExpandedId);
                                 }}
@@ -779,14 +816,16 @@ export default function Home() {
                                               {collection.title}
                                           </h3>
                                           <p className="text-xs text-zinc-500 mt-1">
-                                              {collection._count?.articles || 0} chapters • {formatRelative(new Date(collection.updatedAt).getTime())}
+                                              {collection.isLocal ? 'Local File' : `${collection._count?.articles || 0} chapters`} • {formatRelative(new Date(collection.updatedAt).getTime())}
                                           </p>
                                       </div>
                                   </div>
+                                  {!collection.isLocal && (
                                   <ChevronDown className={twMerge(
                                       "w-4 h-4 text-zinc-400 transition-transform",
                                       expandedCollectionId === collection.id ? "rotate-180" : ""
                                   )} />
+                                  )}
                               </div>
 
                               <AnimatePresence>

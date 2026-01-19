@@ -21,6 +21,12 @@ import { RelatedConcepts } from "../components/RelatedConcepts";
 import { BookInfoBar } from "@/app/components/book/BookInfoBar";
 import { ChapterNavigator } from "@/app/components/book/ChapterNavigator";
 import { ChapterListSidebar } from "@/app/components/book/ChapterListSidebar";
+import { db } from "@/lib/db";
+import { useLiveQuery } from "dexie-react-hooks";
+import dynamic from "next/dynamic";
+
+const EpubReader = dynamic(() => import("./EpubReader").then(m => m.EpubReader), { ssr: false });
+const PdfReader = dynamic(() => import("./PdfReader").then(m => m.PdfReader), { ssr: false });
 
 
 function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
@@ -144,6 +150,29 @@ function ReadContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const id = searchParams.get("id");
+  const localId = searchParams.get("localId");
+
+  // Local Book Handling
+  const localBook = useLiveQuery(
+    () => (localId ? db.books.get(localId) : undefined),
+    [localId]
+  );
+
+  if (localId) {
+    if (!localBook) {
+        return (
+            <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-black">
+                <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+            </div>
+        );
+    }
+    
+    if (localBook.format === 'epub') {
+        return <EpubReader book={localBook} />;
+    } else {
+        return <PdfReader book={localBook} />;
+    }
+  }
 
   // React Query hooks - 自动加载和缓存文章
   const { data: article, isLoading: isLoadingArticle, error: articleError } = useArticle(id || '');
