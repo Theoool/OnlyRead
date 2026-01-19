@@ -40,6 +40,7 @@ model User {
   readingStats     ReadingStats?
   jobs             Job[]
   tags             Tag[]
+  articleChunks    ArticleChunk[]
 
   @@map("users")
 }
@@ -106,6 +107,7 @@ model Article {
   parentId         String?     @map("parent_id") @db.Uuid
   parent           Article?    @relation("ArticleToArticle", fields: [parentId], references: [id])
   children         Article[]   @relation("ArticleToArticle")
+  chunks           ArticleChunk[]
 
   @@unique([collectionId, order])
   @@index([userId])
@@ -279,7 +281,32 @@ enum JobStatus {
 }
 
 // ============================================
-// 7. Stats & History
+// 7. Article Chunk (New for MVP+)
+// ============================================
+model ArticleChunk {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  articleId   String   @map("article_id") @db.Uuid
+  
+  order       Int
+  content     String   @db.Text
+  embedding   Unsupported("vector(1536)")?
+  
+  startOffset Int?     @map("start_offset")
+  endOffset   Int?     @map("end_offset")
+  
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article     Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([articleId])
+  @@map("article_chunks")
+}
+
+// ============================================
+// 8. Stats & History
 // ============================================
 model ReviewHistory {
   id               String    @id @default(uuid()) @db.Uuid

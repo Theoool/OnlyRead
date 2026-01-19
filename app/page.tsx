@@ -15,6 +15,7 @@ import {
   Activity,
   TrendingUp,
   Brain,
+  Sparkles,
   Flame,
   Book,
   Library,
@@ -36,6 +37,7 @@ import { useCollections } from "@/lib/hooks/use-collections";
 import { ArticleListSkeleton } from "@/app/components/ui/skeleton";
 import { db } from "@/lib/db";
 import { useLiveQuery } from "dexie-react-hooks";
+import { toast } from "sonner";
 
 function formatRelative(ts: number) {
   const diff = Date.now() - ts;
@@ -220,8 +222,76 @@ export default function Home() {
         throw new Error("不支持的文件格式。请上传 .epub, .pdf, .md, 或 .txt");
       }
 
-      // Local Handling for EPUB/PDF
+      // Define Background Upload Task (Fire-and-forget for local files)
+      const performBackgroundUpload = async () => {
+         try {
+             console.log('[Background] Starting upload for', file.name);
+             const supabase = createClient();
+             // Sanitize file name
+             const sanitizedFileName = file.name.replace(/[^\x00-\x7F]/g, "").replace(/\s+/g, "_");
+             const filePath = `${user.id}/${Date.now()}_${sanitizedFileName}`;
+
+             // A. Upload to Supabase
+             const { error: uploadError } = await supabase.storage
+               .from('files')
+               .upload(filePath, file);
+
+             if (uploadError) {
+                console.error('Supabase upload error:', uploadError);
+                throw new Error(`上传失败: ${uploadError.message}`);
+             }
+
+             // B. Trigger Backend Import
+             const res = await fetch('/api/import/file', {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({ 
+                 filePath, 
+                 originalName: file.name,
+                 fileType: file.type
+               }),
+             });
+
+             if (!res.ok) {
+               const errorData = await res.json();
+               throw new Error(errorData.error || 'Process failed');
+             }
+
+             const data = await res.json();
+             
+             // C. Refresh remote data
+             await Promise.all([refetchArticles(), refetchCollections()]);
+             
+             // D. Feedback based on mode
+             if (isEpub || isPdf) {
+                 // Parallel mode: Notify user via toast
+                 toast.success("AI 分析准备就绪", { 
+                    description: "文档已同步并完成后台处理，AI 功能现已可用" 
+                 });
+             } else {
+                 // Serial mode: Switch view
+                 if (data.data.collection) {
+                    setViewMode('collections');
+                 } else {
+                    setViewMode('articles');
+                 }
+             }
+             
+         } catch (bgError: any) {
+             console.error("[Background] Upload failed", bgError);
+             if (isEpub || isPdf) {
+                 toast.error("AI 分析同步失败", { description: bgError.message });
+             } else {
+                 throw bgError; // Re-throw for serial mode to catch
+             }
+         }
+      };
+
+      // 2. Execution Strategy
       if (isEpub || isPdf) {
+          // === Parallel Mode (Local First) ===
+          
+          // Step A: Local IndexedDB (Blocking UI for instant feedback)
           const arrayBuffer = await file.arrayBuffer();
           const id = crypto.randomUUID();
           
@@ -235,63 +305,23 @@ export default function Home() {
             progress: 0
           });
           
+          // Step B: Release UI immediately
           setViewMode('collections');
-          setLoading(false);
-          return;
-      }
-
-      // 2. Upload to Supabase Storage
-      const supabase = createClient();
-      const fileExt = file.name.split('.').pop();
-      // Sanitize file name to avoid issues with special characters
-      const sanitizedFileName = file.name.replace(/[^\x00-\x7F]/g, "").replace(/\s+/g, "_");
-      const filePath = `${user.id}/${Date.now()}_${sanitizedFileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('files')
-        .upload(filePath, file);
-
-      if (uploadError) {
-        console.error('Supabase upload error:', uploadError);
-        throw new Error(`上传失败: ${uploadError.message}`);
-      }
-
-      // 3. Notify Backend to process
-      const res = await fetch('/api/import/file', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          filePath, 
-          originalName: file.name,
-          fileType: file.type
-        }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Process failed');
-      }
-
-      const data = await res.json();
-      
-      // 4. Refresh data
-      await Promise.all([refetchArticles(), refetchCollections()]);
-
-      // 5. Navigate or Feedback
-      if (data.data.collection) {
-        setViewMode('collections');
-        // Optional: expand the new collection
-        // setExpandedCollectionId(data.data.collection.id);
+          setLoading(false); 
+          
+          // Step C: Trigger Background Upload (No await)
+          performBackgroundUpload(); 
+          
       } else {
-        setViewMode('articles');
+          // === Serial Mode (Remote Only) ===
+          // MD/TXT currently has no local reader, so we wait
+          await performBackgroundUpload();
+          setLoading(false);
       }
       
     } catch (err: any) {
-      console.error('File upload error:', err);
-      setError(err.message || "File upload failed");
-    } finally {
+      console.error('File handling error:', err);
+      setError(err.message || "文件处理失败");
       setLoading(false);
     }
   }
@@ -682,6 +712,12 @@ export default function Home() {
                 <a href="/review" className="flex items-center gap-1 text-[10px] font-mono text-purple-500 hover:text-purple-600 transition-colors group">
                     <Activity className="w-3 h-3 group-hover:animate-pulse" />
                     REVIEW
+                </a>
+
+                {/* QA Entry */}
+                <a href="/qa" className="flex items-center gap-1 text-[10px] font-mono text-indigo-500 hover:text-indigo-600 transition-colors group">
+                    <Sparkles className="w-3 h-3 group-hover:animate-pulse" />
+                    QA
                 </a>
 
                 {/* Search Link */}

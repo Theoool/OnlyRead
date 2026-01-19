@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { FileParser } from '@/lib/file-parser';
 import { prisma } from '@/lib/infrastructure/database/prisma';
 import { createClient } from '@/lib/supabase/server';
+import { IndexingService } from '@/lib/core/indexing/service';
 import * as crypto from 'crypto';
 
 export const runtime = 'nodejs';
@@ -137,7 +138,7 @@ export async function POST(req: Request) {
         const batch = articlesData.slice(i, i + BATCH_SIZE);
         try {
           // Use transaction to create articles individually to support nested writes (body)
-          await prisma.$transaction(
+          const createdArticles = await prisma.$transaction(
             batch.map((articleData: any) => {
                // Extract content to separate variable as it's not in Article model
                const { content, ...metaData } = articleData;
@@ -155,7 +156,65 @@ export async function POST(req: Request) {
                });
             })
           );
+          
           insertedCount += batch.length;
+
+          // Trigger Indexing (Chunking + Embedding) - Fire and Forget (Node.js runtime safe)
+          // Note: Replaced unstable_after with floating promise due to compatibility issues
+          (async () => {
+            console.log(`[Background] Starting indexing for ${createdArticles.length} articles...`);
+            
+            // 1. Create Job Record
+            let job;
+            try {
+              job = await prisma.job.create({
+                data: {
+                  userId: user.id,
+                  type: 'GENERATE_EMBEDDING',
+                  status: 'PROCESSING',
+                  payload: { articleIds: createdArticles.map(a => a.id) },
+                  progress: 0
+                }
+              });
+            } catch (e) {
+              console.error('[Background] Failed to create job record', e);
+              // Continue processing anyway if job creation fails
+            }
+
+            // 2. Process Articles
+            let completed = 0;
+            for (const article of createdArticles) {
+              try {
+                await IndexingService.processArticle(article.id, user.id);
+                completed++;
+                
+                // Update progress occasionally
+                if (job && completed % 5 === 0) {
+                   await prisma.job.update({
+                      where: { id: job.id },
+                      data: { progress: Math.floor((completed / createdArticles.length) * 100) }
+                   }).catch(() => {});
+                }
+              } catch (e) {
+                console.error(`[Background] Indexing failed for ${article.id}`, e);
+              }
+            }
+            
+            // 3. Complete Job
+            if (job) {
+               await prisma.job.update({
+                  where: { id: job.id },
+                  data: { 
+                    status: 'COMPLETED', 
+                    progress: 100,
+                    result: { processed: completed, total: createdArticles.length }
+                  }
+               }).catch(e => console.error('[Background] Failed to update job status', e));
+            }
+            
+            console.log(`[Background] Indexing finished. ${completed}/${createdArticles.length} processed.`);
+          })().catch(e => console.error('[Background] Async execution failed', e));
+
         } catch (e: any) {
           console.error(`Failed to insert batch ${i/BATCH_SIZE}:`, e);
           errors.push({

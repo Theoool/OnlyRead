@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { ContentExtractor } from '@/lib/content-extractor';
 import { prisma } from '@/lib/infrastructure/database/prisma';
 import { createClient } from '@/lib/supabase/server';
+import { IndexingService } from '@/lib/core/indexing/service';
 import { createId } from '@paralleldrive/cuid2';
 
 export async function POST(req: Request) {
@@ -65,6 +66,57 @@ export async function POST(req: Request) {
 
 
     const { body: articleBody, ...rest } = article;
+
+    // Trigger Indexing (Chunking + Embedding) - Fire and Forget (Node.js runtime safe)
+    (async () => {
+      console.log(`[Background] Starting indexing for URL article ${article.id}...`);
+      
+      // 1. Create Job Record
+      let job;
+      try {
+        job = await prisma.job.create({
+          data: {
+            userId: user.id,
+            type: 'GENERATE_EMBEDDING',
+            status: 'PROCESSING',
+            payload: { articleIds: [article.id], source: 'URL' },
+            progress: 0
+          }
+        });
+      } catch (e) {
+        console.error('[Background] Failed to create job record', e);
+      }
+
+      // 2. Process Article
+      try {
+        await IndexingService.processArticle(article.id, user.id);
+        
+        // 3. Complete Job
+        if (job) {
+          await prisma.job.update({
+            where: { id: job.id },
+            data: { 
+              status: 'COMPLETED', 
+              progress: 100,
+              result: { processed: 1, total: 1 }
+            }
+          });
+        }
+        console.log(`[Background] Indexing finished for URL article ${article.id}`);
+      } catch (e) {
+        console.error(`[Background] Indexing failed for ${article.id}`, e);
+        if (job) {
+          await prisma.job.update({
+            where: { id: job.id },
+            data: { 
+              status: 'FAILED', 
+              result: { error: String(e) }
+            }
+          }).catch(() => {});
+        }
+      }
+    })().catch(e => console.error('[Background] Async execution failed', e));
+
     return NextResponse.json({ 
       data: {
         ...rest,

@@ -80,3 +80,55 @@ export function splitSentences(text: string): string[] {
     .replace(/(\. )/g, ".|");
   return replaced.split("|").filter((s) => s.trim().length > 0);
 }
+
+/**
+ * Split text into semantic chunks for embedding
+ * Uses a sliding window approach respecting paragraph boundaries where possible
+ */
+export function chunkText(text: string, chunkSize: number = 600, overlap: number = 100): string[] {
+  if (!text) return [];
+  const chunks: string[] = [];
+  
+  // 1. First split by markdown blocks to preserve code/headers
+  const blocks = splitMarkdownBlocks(text);
+  
+  let currentChunk = "";
+  
+  for (const block of blocks) {
+    // If adding this block exceeds chunk size
+    if ((currentChunk.length + block.length) > chunkSize && currentChunk.length > 0) {
+        chunks.push(currentChunk.trim());
+        
+        // Start new chunk with overlap from end of previous
+        // (Simple character overlap)
+        const overlapText = currentChunk.slice(-overlap);
+        currentChunk = overlapText + "\n\n" + block;
+    } else {
+        currentChunk += (currentChunk ? "\n\n" : "") + block;
+    }
+    
+    // Handle edge case: Single block is massive (larger than 1.5x chunk size)
+    // Force split it
+    while (currentChunk.length > chunkSize * 1.5) {
+        // Find a convenient break point (newline or space) near chunkSize
+        let splitIdx = currentChunk.lastIndexOf('\n', chunkSize);
+        if (splitIdx === -1 || splitIdx < chunkSize * 0.5) {
+            splitIdx = currentChunk.lastIndexOf(' ', chunkSize);
+        }
+        if (splitIdx === -1) splitIdx = chunkSize; // Hard break
+        
+        const chunk = currentChunk.slice(0, splitIdx);
+        chunks.push(chunk.trim());
+        
+        // Keep overlap for next
+        const overlapStart = Math.max(0, splitIdx - overlap);
+        currentChunk = currentChunk.slice(overlapStart);
+    }
+  }
+  
+  if (currentChunk.trim().length > 0) {
+    chunks.push(currentChunk.trim());
+  }
+  
+  return chunks;
+}

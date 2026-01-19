@@ -4,6 +4,8 @@ import { apiHandler, createSuccessResponse } from '@/lib/infrastructure/error/re
 import { ArticlesRepository } from '@/lib/core/reading/articles.repository';
 import { ArticleSchema } from '@/lib/shared/validation/schemas';
 import { UnauthorizedError } from '@/lib/infrastructure/error';
+import { IndexingService } from '@/lib/core/indexing/service';
+import { prisma } from '@/lib/infrastructure/database/prisma';
 
 // Helper to get authenticated user or throw
 async function requireUser() {
@@ -65,5 +67,56 @@ export const POST = apiHandler(async (req: Request) => {
   const data = ArticleSchema.parse(json);
 
   const article = await ArticlesRepository.create(user.id, data);
+
+  // Trigger Indexing (Chunking + Embedding) - Fire and Forget (Node.js runtime safe)
+  (async () => {
+    console.log(`[Background] Starting indexing for manually created article ${article.id}...`);
+    
+    // 1. Create Job Record
+    let job;
+    try {
+      job = await prisma.job.create({
+        data: {
+          userId: user.id,
+          type: 'GENERATE_EMBEDDING',
+          status: 'PROCESSING',
+          payload: { articleIds: [article.id], source: 'MANUAL_CREATE' },
+          progress: 0
+        }
+      });
+    } catch (e) {
+      console.error('[Background] Failed to create job record', e);
+    }
+
+    // 2. Process Article
+    try {
+      await IndexingService.processArticle(article.id, user.id);
+      
+      // 3. Complete Job
+      if (job) {
+        await prisma.job.update({
+          where: { id: job.id },
+          data: { 
+            status: 'COMPLETED', 
+            progress: 100,
+            result: { processed: 1, total: 1 }
+          }
+        });
+      }
+      console.log(`[Background] Indexing finished for manual article ${article.id}`);
+    } catch (e) {
+      console.error(`[Background] Indexing failed for ${article.id}`, e);
+      if (job) {
+        await prisma.job.update({
+          where: { id: job.id },
+          data: { 
+            status: 'FAILED', 
+            result: { error: String(e) }
+          }
+        }).catch(() => {});
+      }
+    }
+  })().catch(e => console.error('[Background] Async execution failed', e));
+
   return createSuccessResponse({ article }, 201);
 });

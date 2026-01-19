@@ -41,3 +41,8 @@ yarn-error.log*
 next-env.d.ts
 
 /lib/generated/prisma
+.trae/documents/个人知识库 PRD（导入文档→检索→问答→概念沉淀）.md
+.gitignore
+.gitignore
+.trae/documents/Personal Knowledge Base Implementation Plan.md
+.trae/documents/Create Manual Indexing Trigger for Debugging and Fallback.md
