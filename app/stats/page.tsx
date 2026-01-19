@@ -221,7 +221,7 @@ export default function StatsPage() {
 
             {/* Heatmap Grid - Simplified for MVP */}
             <div className="flex gap-1 overflow-x-auto pb-2">
-              {heatmap.heatmap.slice(-90).map((day, index) => (
+              {heatmap.heatmap.slice(-90).reverse().map((day, index) => (
                 <div
                   key={`${day.date}-${index}`}
                   className={`flex-shrink-0 w-3 h-3 rounded-sm ${getHeatmapColor(day.count, heatmap.maxReviews)}`}

@@ -1,125 +1,71 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ConceptData } from "@/lib/store/useConceptStore";
-import { calculateSRS } from "@/lib/srs";
+import { useDueConcepts, useSubmitReview, useAiDefinition } from "@/lib/hooks/use-concepts";
 import { motion, AnimatePresence } from "framer-motion";
-import { Brain, Check, X, ArrowRight, RotateCw, Eye, EyeOff, Home } from "lucide-react";
-import { getCachedConcept, setCachedConcept } from "@/lib/cache";
-import { useConcepts, useUpdateConcept } from "@/lib/hooks";
+import { Brain, Check, Eye, Home } from "lucide-react";
 
 export default function ReviewPage() {
   const router = useRouter();
-  const { concepts, loading } = useConcepts();
-  const updateConceptMutation = useUpdateConcept();
-  const [queue, setQueue] = useState<ConceptData[]>([]);
+
+  // 1. Data Fetching (Server-side filtering & caching via React Query)
+  const { data: queue = [], isLoading } = useDueConcepts();
+  const submitReviewMutation = useSubmitReview();
+
+  // 2. Local State
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
-  const [rating, setRating] = useState(false);
 
-  // AI Definition State (fetched from cache or placeholder)
-  const [aiDefinition, setAiDefinition] = useState<string | null>(null);
-
-  // Initialize review queue
-  // We only set the queue once to ensure stability during the session
-  useEffect(() => {
-    if (queue.length > 0 || loading) return;
-
-    const now = Date.now();
-    const due = Object.values(concepts).filter(c => {
-      // If never reviewed, it's due. Or if nextReviewDate is passed.
-      return !c.nextReviewDate || c.nextReviewDate <= now;
-    });
-
-    if (due.length > 0) {
-      // Limit to 10 per session to keep it "Small & Beautiful"
-      setQueue(due.sort((a, b) => (a.nextReviewDate || 0) - (b.nextReviewDate || 0)).slice(0, 10));
-    }
-  }, [concepts, queue.length, loading]);
-
-  // Preload AI definition for the next card
-  useEffect(() => {
-    const nextCard = queue[currentIndex + 1];
-    if (nextCard) {
-      const cached = getCachedConcept<any>(nextCard.term);
-      if (!cached) {
-        // Prefetch silently
-        fetch("/api/concept", {
-            method: "POST",
-            credentials: 'include',
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ selection: nextCard.term }),
-        }).then(res => res.json()).then(data => {
-            if (data.term) {
-                setCachedConcept(nextCard.term, data);
-            }
-        }).catch(() => {});
-      }
-    }
-  }, [currentIndex, queue]);
-
+  // 3. Derived State
   const currentCard = queue[currentIndex];
 
-  // Load AI definition for current card
-  useEffect(() => {
-      if (!currentCard) return;
+  // 4. AI Definition (Reactive, Cached, Race-condition free)
+  const { data: aiDefinition } = useAiDefinition(currentCard?.term);
 
-      const cached = getCachedConcept<any>(currentCard.term);
-      if (cached?.definition) {
-          setAiDefinition(cached.definition);
-      } else {
-          setAiDefinition(null); // Clear previous while fetching
-          fetch("/api/concept", {
-              method: "POST",
-              credentials: 'include',
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ selection: currentCard.term }),
-          })
-          .then(res => res.json())
-          .then(data => {
-              if (data.definition) {
-                  setCachedConcept(currentCard.term, data);
-                  setAiDefinition(data.definition);
-              } else {
-                  setAiDefinition("AI definition unavailable.");
-              }
-          })
-          .catch(() => {
-              setAiDefinition("AI definition unavailable.");
-          });
-      }
-  }, [currentCard]);
-
+  // 5. Handlers
   const handleRate = async (quality: number) => {
-    if (!currentCard || rating) return;
-
-    setRating(true);
-    const updates = calculateSRS(currentCard, quality);
+    // Prevent double submission or submission without card
+    if (!currentCard?.id || submitReviewMutation.isPending) return;
 
     try {
-      await updateConceptMutation.mutateAsync({
-        term: currentCard.term,
-        data: updates,
+      // Use dedicated review API
+      await submitReviewMutation.mutateAsync({
+        id: currentCard.id,
+        quality,
       });
 
+      // Move to next card or finish
       if (currentIndex < queue.length - 1) {
         setIsFlipped(false);
+        // Small delay for animation
         setTimeout(() => {
-          setCurrentIndex(prev => prev + 1);
-          setRating(false);
+          setCurrentIndex((prev) => prev + 1);
         }, 300);
       } else {
         setIsFinished(true);
-        setRating(false);
       }
     } catch (error) {
-      console.error('Failed to update concept:', error);
-      setRating(false);
+      console.error("Failed to submit review:", error);
     }
   };
 
+  // --- Render States ---
+
+  // Loading State
+  if (isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-zinc-100 dark:bg-black">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-zinc-400 font-medium animate-pulse">Loading review session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty State (No Due Cards)
   if (queue.length === 0 && !isFinished) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-zinc-50 dark:bg-black p-6 text-center">
@@ -142,6 +88,7 @@ export default function ReviewPage() {
     );
   }
 
+  // Finished State
   if (isFinished) {
       return (
         <div className="h-screen flex flex-col items-center justify-center bg-zinc-50 dark:bg-black p-6 text-center">
@@ -170,7 +117,7 @@ export default function ReviewPage() {
       )
   }
 
-  if (!currentCard) return null; // Should not happen due to queue check
+  if (!currentCard) return null;
 
   return (
     <div className="h-screen w-full bg-zinc-100 dark:bg-black flex flex-col items-center justify-center p-4 relative overflow-hidden">
@@ -245,7 +192,7 @@ export default function ReviewPage() {
                                     <span className="text-xs font-bold uppercase tracking-wider text-purple-400">AI Reference</span>
                                 </div>
                                 <p className="text-zinc-800 dark:text-zinc-200 leading-relaxed">
-                                    {aiDefinition}
+                                    {aiDefinition || "Loading AI definition..."}
                                 </p>
                             </div>
                         </motion.div>
@@ -261,13 +208,25 @@ export default function ReviewPage() {
                     >
                         <span className="text-sm text-zinc-400 font-medium uppercase tracking-widest">How was your recall?</span>
                         <div className="flex gap-3 w-full md:w-auto">
-                            <button onClick={() => handleRate(1)} className="flex-1 md:flex-none px-6 py-3 rounded-xl bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors">
+                            <button 
+                                onClick={() => handleRate(1)} 
+                                disabled={submitReviewMutation.isPending}
+                                className="flex-1 md:flex-none px-6 py-3 rounded-xl bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors disabled:opacity-50"
+                            >
                                 Forgot
                             </button>
-                            <button onClick={() => handleRate(3)} className="flex-1 md:flex-none px-6 py-3 rounded-xl bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 font-medium hover:bg-yellow-200 dark:hover:bg-yellow-900/50 transition-colors">
+                            <button 
+                                onClick={() => handleRate(3)} 
+                                disabled={submitReviewMutation.isPending}
+                                className="flex-1 md:flex-none px-6 py-3 rounded-xl bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 font-medium hover:bg-yellow-200 dark:hover:bg-yellow-900/50 transition-colors disabled:opacity-50"
+                            >
                                 Hard
                             </button>
-                            <button onClick={() => handleRate(4)} className="flex-1 md:flex-none px-6 py-3 rounded-xl bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-medium hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors">
+                            <button 
+                                onClick={() => handleRate(4)} 
+                                disabled={submitReviewMutation.isPending}
+                                className="flex-1 md:flex-none px-6 py-3 rounded-xl bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-medium hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors disabled:opacity-50"
+                            >
                                 Easy
                             </button>
                         </div>

@@ -1,51 +1,94 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { LocalBook, db } from '@/lib/db';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { LocalBook } from '@/lib/db';
 import { useTheme } from 'next-themes';
-import { Loader2, List, X, ArrowLeft, Minus, Plus, Sparkles, Check } from 'lucide-react';
+import { Loader2, List, X, ArrowLeft, Minus, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useConceptStore, ConceptData } from '@/lib/store/useConceptStore';
 import { ConceptHud } from '@/app/components/ConceptHud';
 import { ConceptCard } from '@/app/components/ConceptCard';
-import { SelectionToolbar } from '@/app/components/SelectionToolbar';
 import { twMerge } from 'tailwind-merge';
-import { EpubParser, EpubBook, EpubChapter } from '@/lib/epub/epub-parser';
+import { EpubView } from 'react-reader';
 
 interface EpubReaderProps {
   book: LocalBook;
 }
 
 export function EpubReader({ book }: EpubReaderProps) {
-  const [parsedBook, setParsedBook] = useState<EpubBook | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [fontSize, setFontSize] = useState(100);
+  const [location, setLocation] = useState<string | number>(0);
+  const [toc, setToc] = useState<any[]>([]);
+  const renditionRef = useRef<any>(null);
   const [isTocOpen, setIsTocOpen] = useState(false);
+  const [fontSize, setFontSize] = useState(100);
   const router = useRouter();
+  const { theme } = useTheme();
   
   // Concept Store
   const { concepts, addConcept } = useConceptStore();
   const [activeCard, setActiveCard] = useState<{ x: number; y: number; term: string; savedData?: ConceptData } | null>(null);
 
-  // Parse Book
-  useEffect(() => {
-    async function loadBook() {
-      try {
-        setLoading(true);
-        const parser = new EpubParser();
-        const data = await parser.parse(book.fileData);
-        setParsedBook(data);
-      } catch (e) {
-        console.error("Failed to parse EPUB", e);
-        setError("无法解析此文件");
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadBook();
+  // Clean up Blob URL (Safe for Strict Mode)
+  // We don't revoke immediately on unmount because Strict Mode will unmount/remount quickly,
+  // causing the URL to be invalid on the second mount.
+  // We rely on the browser's GC or book change to clear.
+  /*
+  const url = useMemo(() => {
+    if (!book.fileData) return null;
+    return URL.createObjectURL(new Blob([book.fileData], { type: 'application/epub+zip' }));
   }, [book.fileData]);
+  */
+
+  // Styles Injection
+  const updateTheme = useCallback((rendition: any) => {
+    if (!rendition) return;
+    const isDark = theme === 'dark';
+    const textColor = isDark ? '#E4E4E7' : '#27272A'; // zinc-200 : zinc-800
+    const bg = isDark ? '#000000' : '#FAFAFA'; 
+    
+    rendition.themes.register('custom', {
+       body: { 
+         color: textColor, 
+         background: bg, 
+         'font-family': 'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
+         'padding-top': '40px !important',
+         'padding-bottom': '40px !important',
+         'padding-left': '20px !important',
+         'padding-right': '20px !important',
+         'max-width': '800px !important',
+         'margin': '0 auto !important',
+       },
+       'p': { 
+         'font-size': '1.125rem !important',
+         'line-height': '1.8 !important',
+         'text-align': 'justify !important',
+         'margin-bottom': '1.5em !important'
+       },
+       'h1': { 'font-family': 'serif', 'margin-top': '2em' },
+       'h2': { 'font-family': 'serif', 'margin-top': '1.5em' },
+       'img': { 'max-width': '100%', 'border-radius': '0.5rem' },
+       '::selection': {
+           'background': isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)'
+       }
+    });
+    rendition.themes.select('custom');
+  }, [theme]);
+
+  // Update theme when changed
+  useEffect(() => {
+      if (renditionRef.current) {
+          updateTheme(renditionRef.current);
+      }
+  }, [theme, updateTheme]);
+
+  // Update fontSize
+  useEffect(() => {
+      const rendition = renditionRef.current;
+      if (rendition) {
+          rendition.themes.fontSize(`${fontSize}%`);
+      }
+  }, [fontSize]);
 
   // Handle Selection
   const handleSelectionActivate = (text: string, rect: DOMRect) => {
@@ -65,6 +108,8 @@ export function EpubReader({ book }: EpubReaderProps) {
               sourceArticleId: book.id 
           });
           setActiveCard(null);
+          // Optional: Clear selection in epub
+          // renditionRef.current?.getContents()[0]?.window.getSelection().removeAllRanges();
       } catch (error) {
           console.error('Failed to save concept:', error);
       }
@@ -74,42 +119,22 @@ export function EpubReader({ book }: EpubReaderProps) {
       return Object.values(concepts); 
   }, [concepts]);
 
-  // Scroll to chapter
-  const scrollToChapter = (id: string) => {
-    const el = document.getElementById(`chapter-${id}`);
-    if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        setIsTocOpen(false);
-    }
-  };
-
-  if (loading) {
+  if (!book.fileData) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-[#FAFAFA] dark:bg-black">
         <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
-        <span className="ml-2 text-zinc-500 text-sm">解析文件中...</span>
-      </div>
-    );
-  }
-
-  if (error || !parsedBook) {
-    return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-[#FAFAFA] dark:bg-black gap-4">
-        <p className="text-zinc-500">{error || "加载失败"}</p>
-        <button onClick={() => router.back()} className="text-zinc-900 underline">返回</button>
       </div>
     );
   }
 
   return (
-    <div className="h-screen w-full bg-[#FAFAFA] dark:bg-black relative overflow-hidden flex flex-col selection:bg-zinc-200 selection:text-black dark:selection:bg-zinc-800 dark:selection:text-white">
-       
-       {/* Noise Texture */}
+    <div className="h-screen w-full bg-[#FAFAFA] dark:bg-black relative overflow-hidden flex flex-col">
+       {/* Background Noise */}
        <div className="absolute inset-0 opacity-[0.015] pointer-events-none z-0 mix-blend-multiply dark:mix-blend-overlay"
         style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}
        />
 
-       {/* Floating Header */}
+       {/* Header */}
        <header className="fixed top-0 left-0 right-0 h-[60px] flex items-center justify-between px-6 z-40 pointer-events-none">
           <motion.div 
             initial={{ opacity: 0, y: -10 }}
@@ -121,7 +146,7 @@ export function EpubReader({ book }: EpubReaderProps) {
                className="flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-2 rounded-full border border-zinc-200/50 dark:border-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-zinc-600 dark:text-zinc-400"
              >
                 <ArrowLeft className="w-4 h-4" />
-                <span className="text-xs font-medium max-w-[150px] truncate">{parsedBook.metadata.title || book.title}</span>
+                <span className="text-xs font-medium max-w-[150px] truncate">{book.title}</span>
              </button>
           </motion.div>
 
@@ -163,31 +188,57 @@ export function EpubReader({ book }: EpubReaderProps) {
           </div>
        </header>
 
-       {/* Native Scrollable Reader Area */}
-       <main 
-         className="flex-1 relative overflow-y-auto z-10 scroll-smooth no-scrollbar"
-         style={{ fontSize: `${fontSize}%` }}
-       >
-         <div className="w-full max-w-3xl mx-auto px-6 py-[100px] flex flex-col gap-12">
-            {parsedBook.chapters.map((chapter) => (
-                <article 
-                    key={chapter.id} 
-                    id={`chapter-${chapter.id}`}
-                    className="prose prose-zinc dark:prose-invert max-w-none prose-lg prose-p:leading-loose prose-p:text-justify prose-img:rounded-xl prose-headings:font-serif"
-                >
-                    <div dangerouslySetInnerHTML={{ __html: chapter.content }} />
-                </article>
-            ))}
-         </div>
-       </main>
+       {/* Reader Area */}
+       <div className="flex-1 w-full h-full relative z-10">
+           <EpubView
+              style={{ height: '100vh' }}
+              url={book.fileData}
+              location={location}
+              locationChanged={(loc: string | number) => setLocation(loc)}
+              tocChanged={(t) => setToc(t)}
+              epubOptions={{
+                  flow: 'scrolled',
+                  manager: 'continuous',
+                  width: '100%',
+                  height: '100%',
+              }}
+              getRendition={(rendition) => {
+                  renditionRef.current = rendition;
+                  updateTheme(rendition);
+                  
+                  rendition.on('selected', (cfiRange: string, contents: any) => {
+                      const range = contents.window.getSelection().getRangeAt(0);
+                      const rect = range.getBoundingClientRect();
+                      
+                      // Calculate absolute position relative to viewport
+                      const iframe = rendition.manager.container.querySelector('iframe');
+                      let x = rect.left;
+                      let y = rect.top;
+                      
+                      if (iframe) {
+                          const iframeRect = iframe.getBoundingClientRect();
+                          x += iframeRect.left;
+                          y += iframeRect.top;
+                      }
 
-       {/* Selection Toolbar (Global) */}
-       <SelectionToolbar 
-          onActivate={handleSelectionActivate}
-          disabled={!!activeCard}
-       />
-
-       {/* Footer Hints */}
+                      handleSelectionActivate(
+                          range.toString(),
+                          {
+                              left: x,
+                              top: y,
+                              width: rect.width,
+                              height: rect.height,
+                              right: x + rect.width,
+                              bottom: y + rect.height,
+                              x, y, toJSON: () => {}
+                          } as DOMRect
+                      );
+                  });
+              }}
+           />
+       </div>
+       
+       {/* Footer */}
        <motion.footer 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -219,13 +270,16 @@ export function EpubReader({ book }: EpubReaderProps) {
                </button>
              </div>
              <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
-               {parsedBook.chapters.map((chapter) => (
+               {toc.map((chapter, i) => (
                  <button
-                   key={chapter.id}
-                   onClick={() => scrollToChapter(chapter.id)}
+                   key={i}
+                   onClick={() => {
+                       setLocation(chapter.href);
+                       setIsTocOpen(false);
+                   }}
                    className="w-full text-left py-2.5 px-3 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-lg transition-colors truncate"
                  >
-                   {chapter.title}
+                   {chapter.label}
                  </button>
                ))}
              </div>
