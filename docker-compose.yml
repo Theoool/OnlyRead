@@ -10,12 +10,16 @@ services:
       dockerfile: Dockerfile
     container_name: anti-ai-reader-web
     restart: unless-stopped
+    depends_on:
+      - db
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=${DATABASE_URL}
-      - DIRECT_URL=${DIRECT_URL}
+      # Connect to the local Docker database
+      - DATABASE_URL=postgresql://postgres:password@db:5432/anti-ai-reader
+      - DIRECT_URL=postgresql://postgres:password@db:5432/anti-ai-reader
+      # Keep Supabase Auth/Storage configuration
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
@@ -23,6 +27,25 @@ services:
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
       - AI_MODEL_NAME=${AI_MODEL_NAME:-gpt-4o-mini}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    networks:
+      - anti-ai-reader-network
+
+  # ============================================
+  # Database Service (pgvector)
+  # ============================================
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: anti-ai-reader-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: anti-ai-reader
+    ports:
+      # Expose port for local management (Prisma Studio, etc.)
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - anti-ai-reader-network
 
@@ -61,4 +84,3 @@ networks:
 
 volumes:
   postgres_data:
-  redis_data:

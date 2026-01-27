@@ -3,7 +3,8 @@
 # ============================================
 
 # Stage 1: Dependencies
-FROM node:20-alpine AS deps
+# Using AWS Public ECR mirror for better connectivity
+FROM public.ecr.aws/docker/library/node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -13,11 +14,15 @@ RUN npm install -g pnpm
 # Copy package files
 COPY package.json pnpm-lock.yaml* ./
 
+# Copy Prisma schema (required for postinstall script 'prisma generate')
+COPY prisma ./prisma
+
 # Install dependencies
-RUN pnpm install --prod && pnpm store prune
+# We need to install dev dependencies as well because 'prisma generate' (in postinstall) needs 'prisma' CLI which is a dev dependency
+RUN pnpm install && pnpm store prune
 
 # Stage 2: Builder
-FROM node:20-alpine AS builder
+FROM public.ecr.aws/docker/library/node:20-alpine AS builder
 WORKDIR /app
 
 # Install pnpm
@@ -27,8 +32,15 @@ RUN npm install -g pnpm
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Set dummy environment variables to bypass Prisma validation during build
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+ENV DIRECT_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+# Set dummy OPENAI_API_KEY to bypass build-time validation in API routes
+ENV OPENAI_API_KEY="dummy-key-for-build"
+
 # Install all dependencies (including devDependencies) for build
-RUN pnpm install
+# We explicitly install dotenv to ensure it is available for prisma.config.ts
+RUN pnpm install && pnpm add -D dotenv
 
 # Generate Prisma Client
 RUN pnpm prisma generate
@@ -41,7 +53,16 @@ ENV NODE_ENV=production
 RUN pnpm run build
 
 # Stage 3: Runner
-FROM node:20-alpine AS runner
+FROM public.ecr.aws/docker/library/node:20-alpine AS runner
+# Install libc6-compat for Next.js/Prisma in runtime
+RUN apk add --no-cache libc6-compat
+# Install pnpm and prisma globally for database management
+RUN npm install -g pnpm prisma@6.19.2
+
+# Remove prisma.config.ts if it exists to prevent config loading issues in production
+# and fallback to standard schema.prisma behavior
+RUN rm -f prisma.config.ts
+
 WORKDIR /app
 
 ENV NODE_ENV=production

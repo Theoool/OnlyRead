@@ -5,6 +5,7 @@ generator client {
   provider        = "prisma-client-js"
   output          = "../lib/generated/prisma"
   previewFeatures = ["postgresqlExtensions", "fullTextSearch"]
+  binaryTargets   = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -23,8 +24,7 @@ model User {
   fullName         String?  @map("full_name")
   avatarUrl        String?  @map("avatar_url")
   subscriptionType String   @default("free") @map("subscription_type") @db.VarChar(50)
-  
-  // Settings moved to separate table for cleaner user object
+
   settings         UserSettings?
 
   createdAt        DateTime @default(now()) @map("created_at")
@@ -48,7 +48,6 @@ model User {
 model UserSettings {
   userId           String  @id @map("user_id") @db.Uuid
   user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
   theme            String  @default("system")
   language         String  @default("zh-CN")
   dailyGoal        Int     @default(10) @map("daily_goal")
@@ -127,9 +126,7 @@ model ArticleBody {
   @@map("article_bodies")
 }
 
-// ============================================
-// 3. Collection Model
-// ============================================
+
 model Collection {
   id          String    @id @default(uuid()) @db.Uuid
   title       String
@@ -165,9 +162,6 @@ model Collection {
   @@map("collections")
 }
 
-// ============================================
-// 4. Knowledge Graph (Concept)
-// ============================================
 model Concept {
   id               String    @id @default(uuid()) @db.Uuid
   userId           String    @map("user_id") @db.Uuid
@@ -217,9 +211,7 @@ model Concept {
   @@map("concepts")
 }
 
-// ============================================
-// 5. Tag System
-// ============================================
+
 model Tag {
   id        String   @id @default(uuid()) @db.Uuid
   name      String   @db.VarChar(50)
@@ -245,9 +237,7 @@ model TagsOnConcepts {
   @@map("tags_on_concepts")
 }
 
-// ============================================
-// 6. Async Job System
-// ============================================
+
 model Job {
   id          String    @id @default(uuid()) @db.Uuid
   userId      String    @map("user_id") @db.Uuid
