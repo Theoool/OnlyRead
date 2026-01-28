@@ -1,19 +1,26 @@
-import { OpenAI } from 'openai'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/infrastructure/database/prisma'
 import { generateEmbedding } from '@/lib/infrastructure/ai/embedding'
 import { createErrorResponse, createSuccessResponse } from '@/lib/infrastructure/api/response'
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL,
-})
+import { ChatOpenAI } from '@langchain/openai'
+import { ChatPromptTemplate } from '@langchain/core/prompts'
 
 const QaRequestSchema = z.object({
   question: z.string().min(1),
   topK: z.number().int().min(1).max(12).optional().default(6),
 })
+
+const AnswerSchema = z.object({
+  answer: z.string().describe("回答正文（中文）"),
+  confidence: z.number().describe("0-1 的小数,反映资料支撑强度"),
+  citations: z.array(z.object({
+    articleId: z.string().describe("UUID of the article"),
+    title: z.string().describe("Title of the article"),
+    quote: z.string().describe("用于支撑回答的原文摘录"),
+  })).describe("List of citations supporting the answer"),
+  followUpQuestions: z.array(z.string()).describe("可选的追问列表"),
+});
 
 export async function POST(req: Request) {
   try {
@@ -89,53 +96,63 @@ export async function POST(req: Request) {
             )
             .join('\n\n')
 
-    const systemPrompt = `你是一个严谨的中文知识库问答助手。你只能依据给定的“资料片段”回答问题。
-如果资料不足以回答，必须明确说“不确定/资料不足”，并说明缺少什么信息。
-输出必须是 JSON 对象，结构如下：
-{
-  "answer": "回答正文（中文）",
-  "confidence": 0-1 的小数,
-  "citations": [
-    { "articleId": "uuid", "title": "标题", "quote": "用于支撑回答的原文摘录" }
-  ],
-  "followUpQuestions": ["可选的追问1", "可选的追问2"]
-}`
+    if (!process.env.AI_MODEL_NAME) {
+      return createSuccessResponse({ answer: '', sources: [], error: 'AI_MODEL_NAME not set' }, 500)
+    }
 
-    const userPrompt = `问题：${question}
+    const llm = new ChatOpenAI({
+      modelName: process.env.AI_MODEL_NAME,
+      temperature: 0.2,
+      apiKey: process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY,
+      configuration: {
+        baseURL: process.env.OPENAI_BASE_URL,
+      },
+    });
+
+    const prompt = ChatPromptTemplate.fromMessages([
+      ["system", `你是一位「精准溯源型知识工程师」，专精于基于给定文本的严格事实核查与结构化输出。
+
+## 核心工作原则
+1. **绝对溯源**：每一个事实必须锚定到资料片段的具体文本，禁止常识补充、推理延伸或概括转述
+2. **置信度诚实**：confidence 反映"资料支撑强度"，而非"答案看起来对不对"
+3. **不确定时拒绝**：宁可输出"资料不足"，绝不编造或模糊表述`],
+      ["user", `问题：{question}
 
 资料片段：
-${contextText}
+{context}
 
 要求：
 1) 回答尽量简洁、结构清晰。
 2) 每个关键结论都尽量给出 citations；quote 必须来自资料片段原文，且尽量短（<=120字）。
-3) 如果没有资料片段或无法支撑结论，confidence 设为 <=0.3。`
+3) 如果没有资料片段或无法支撑结论，confidence 设为 <=0.3。`]
+    ]);
 
-    const completion = await openai.chat.completions.create({
-      model: process.env.AI_MODEL_NAME || 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.2,
-      max_tokens: 800,
-    })
+    const chain = prompt.pipe(llm.withStructuredOutput(AnswerSchema));
 
-    const content = completion.choices?.[0]?.message?.content || '{}'
-    let parsed: any
     try {
-      parsed = JSON.parse(content)
-    } catch {
-      parsed = { answer: content, confidence: 0.2, citations: [], followUpQuestions: [] }
+      const result = await chain.invoke({
+        question,
+        context: contextText
+      });
+
+      return createSuccessResponse({
+        ...result,
+        sources,
+      })
+    } catch (e) {
+       console.error("QA Generation failed", e);
+       // Provide a graceful fallback or error
+       return createSuccessResponse({ 
+         answer: '抱歉，生成回答时遇到错误。', 
+         confidence: 0, 
+         citations: [], 
+         followUpQuestions: [], 
+         sources, 
+         error: 'Generation failed' 
+       }, 200) // Return 200 so UI shows the error message in the answer box if preferred, or 500.
     }
 
-    return createSuccessResponse({
-      ...parsed,
-      sources,
-    })
   } catch (error) {
     return createErrorResponse(error)
   }
 }
-
