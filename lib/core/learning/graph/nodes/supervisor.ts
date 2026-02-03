@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 
 const RouterOutputSchema = z.object({
-  nextStep: z.enum(['explain', 'quiz', 'code', 'end']),
+  nextStep: z.enum(['explain', 'quiz', 'code', 'plan', 'end']),
   reasoning: z.string().describe("Why this step was chosen"),
   topic: z.string().describe("The specific sub-topic to focus on"),
 });
@@ -25,10 +25,12 @@ Current Context:
 - Mastery: ${state.masteryLevel}
 
 Rules:
-1. New topic or confusion -> 'explain'
-2. Claims understanding -> 'quiz'
-3. Wants practice -> 'code'
-4. Goodbye/Off-topic -> 'end'
+1. "Start", "Analyze", "Plan", "Overview" -> 'plan'
+2. Specific questions about content ("What is X?", "Explain Y", "How does Z work?") -> 'explain'
+3. New topic or confusion -> 'explain'
+4. Claims understanding -> 'quiz'
+5. Wants practice -> 'code'
+6. Goodbye/Off-topic -> 'end'
 
 Output a JSON decision.`;
 

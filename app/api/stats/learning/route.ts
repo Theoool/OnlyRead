@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/infrastructure/database/prisma'
 import { NextResponse } from 'next/server'
+import { devCache, cacheKeys } from '@/lib/infrastructure/cache/dev-cache'
 
 // GET - Fetch overall learning statistics
 export async function GET(req: Request) {
@@ -14,6 +15,18 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const period = searchParams.get('period') || 'all' // all, week, month
+
+    // Skip cache for warmup requests to keep data fresh
+    const isWarmup = req.headers.get('x-warmup') === 'true'
+    const cacheKey = cacheKeys.stats(user.id, period)
+
+    // Try cache first (shorter TTL for warmup)
+    if (!isWarmup) {
+      const cached = devCache.get(cacheKey)
+      if (cached) {
+        return NextResponse.json(cached)
+      }
+    }
 
     // Calculate date range
     const now = new Date()
@@ -37,7 +50,7 @@ export async function GET(req: Request) {
         where: {
           userId: user.id,
           deletedAt: null,
-        },
+        }, 
       }),
 
       // Total articles
@@ -49,6 +62,7 @@ export async function GET(req: Request) {
       }),
 
       // Total reviews in period
+
       prisma.reviewHistory.count({
         where: {
           userId: user.id,
@@ -105,7 +119,7 @@ export async function GET(req: Request) {
       },
     })
 
-    return NextResponse.json({
+    const response = {
       period,
       totalReadingTime,
       totalConcepts,
@@ -116,7 +130,12 @@ export async function GET(req: Request) {
       currentStreak,
       longestStreak,
       generatedAt: now.toISOString(),
-    })
+    }
+
+    // Cache the response (3 second TTL for dev)
+    devCache.set(cacheKey, response, 3000)
+
+    return NextResponse.json(response)
   } catch (error: any) {
     console.error('Learning stats error:', error)
     return NextResponse.json(

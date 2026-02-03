@@ -80,6 +80,23 @@ export function useAiDefinition(term: string | undefined) {
 }
 
 /**
+ * 高级筛选概念
+ */
+export function useFilteredConcepts(params: {
+  tags?: string[]
+  mastered?: boolean | 'all'
+  due?: boolean
+  limit?: number
+  sortBy?: 'recent' | 'name' | 'interval' | 'reviews'
+}) {
+  return useQuery({
+    queryKey: ['concepts', 'filter', params],
+    queryFn: () => conceptsAPI.filterConcepts(params),
+    placeholderData: (previousData) => previousData,
+  })
+}
+
+/**
  * 提交复习结果
  */
 export function useSubmitReview() {

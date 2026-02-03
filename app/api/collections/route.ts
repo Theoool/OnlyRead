@@ -1,25 +1,18 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { requireUserFromHeader } from '@/lib/supabase/user';
 import { apiHandler, createSuccessResponse } from '@/lib/infrastructure/error/response';
 import { UnauthorizedError } from '@/lib/infrastructure/error';
 import { CollectionsRepository } from '@/lib/core/reading/collections.repository';
+import { CollectionCreateSchema } from '@/lib/shared/validation/schemas';
 
-// Helper to get authenticated user
-async function requireUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    throw new UnauthorizedError();
-  }
-  return user;
-}
+
 
 /**
  * GET /api/collections
  * List all collections
  */
 export const GET = apiHandler(async (req) => {
-  const user = await requireUser();
+  const user = await requireUserFromHeader(req);
   const collections = await CollectionsRepository.findAll(user.id);
   return createSuccessResponse({ collections });
 });
@@ -29,23 +22,13 @@ export const GET = apiHandler(async (req) => {
  * Create a new collection
  */
 export const POST = apiHandler(async (req) => {
-  const user = await requireUser();
+  const user = await requireUserFromHeader(req);
   const json = await req.json();
 
-  // Basic validation (can use Zod schema later)
-  if (!json.title) {
-    throw new Error('Title is required');
-  }
+  // Validate with Zod schema
+  const data = CollectionCreateSchema.parse(json);
 
-  const collection = await CollectionsRepository.create(user.id, {
-    title: json.title,
-    description: json.description,
-    cover: json.cover,
-    type: json.type || 'SERIES',
-    author: json.author,
-    isbn: json.isbn,
-    language: json.language,
-  });
+  const collection = await CollectionsRepository.create(user.id, data);
 
   return createSuccessResponse({ collection }, 201);
 });

@@ -1,6 +1,6 @@
 import { ConceptData } from "@/lib/store/useConceptStore";
 
-// SuperMemo 2 Algorithm Simplified
+
 export function calculateSRS(concept: ConceptData, quality: number): Partial<ConceptData> {
   // Quality: 0-5 (0: Blackout, 5: Perfect)
   // We map user feedback "Forgot"(1), "Hard"(2), "Good"(4), "Easy"(5)

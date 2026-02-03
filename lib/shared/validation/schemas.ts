@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import { API_CONFIG } from '@/lib/config/constants';
+
+// Re-export for consistency
+export { z };
 
 /**
  * Article Validation Schemas
@@ -43,4 +47,47 @@ export const ConceptUpdateSchema = ConceptSchema.partial().extend({
 export const ReviewSchema = z.object({
   conceptId: z.string().uuid(),
   quality: z.number().int().min(0).max(5),
+});
+
+/**
+ * Collection Validation Schemas
+ */
+export const CollectionCreateSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(500),
+  description: z.string().max(2000).optional(),
+  type: z.enum(['SERIES', 'BOOK', 'COURSE']).default('SERIES'),
+  author: z.string().max(255).optional(),
+  isbn: z.string().max(50).regex(/^[\d-X]+$/, 'Invalid ISBN format').optional(),
+  language: z.string().max(10).default('zh-CN'),
+  cover: z.string().url('Invalid cover URL').optional(),
+});
+
+export const CollectionUpdateSchema = CollectionCreateSchema.partial().extend({
+  id: z.string().uuid(),
+});
+
+/**
+ * QA Request Validation Schema
+ */
+export const QaRequestSchema = z.object({
+  question: z.string()
+    .min(1, 'Question is required')
+    .max(2000, 'Question too long'),
+  topK: z.number()
+    .int()
+    .min(1)
+    .max(12)
+    .default(API_CONFIG.DEFAULT_TOP_K),
+  collectionId: z.string().uuid().optional(),
+  articleIds: z.array(z.string().uuid()).max(10).optional(),
+});
+
+/**
+ * Search Query Validation Schema
+ */
+export const SearchQuerySchema = z.object({
+  q: z.string().min(1, 'Query is required').max(200),
+  type: z.enum(['all', 'concepts', 'articles']).default('all'),
+  limit: z.number().int().min(1).max(50).default(20),
+  vector: z.boolean().default(true),
 });

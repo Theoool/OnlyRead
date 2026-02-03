@@ -1,39 +1,37 @@
 import { NextResponse } from 'next/server';
-import { getOrCreateUser } from '@/lib/supabase/user';
+import { getOrCreateUser, requireUserFromHeader } from '@/lib/supabase/user';
 import { apiHandler, createSuccessResponse } from '@/lib/infrastructure/error/response';
 import { ArticlesRepository } from '@/lib/core/reading/articles.repository';
 import { ArticleSchema } from '@/lib/shared/validation/schemas';
 import { UnauthorizedError } from '@/lib/infrastructure/error';
 import { IndexingService } from '@/lib/core/indexing/service';
 import { prisma } from '@/lib/infrastructure/database/prisma';
+import { devCache, cacheKeys } from '@/lib/infrastructure/cache/dev-cache';
+import { API_CONFIG } from '@/lib/config/constants';
 
-// Helper to get authenticated user or throw
-async function requireUser() {
-  const user = await getOrCreateUser();
-  if (!user) {
-    throw new UnauthorizedError();
-  }
-  return user;
-}
 
-/**
- * GET /api/articles
- * List all articles with pagination and filtering
- * Query params:
- * - page: number (default: 1)
- * - pageSize: number (default: 20)
- * - type: string (optional)
- * - includeCollectionArticles: boolean (default: false)
- */
+
+
 export const GET = apiHandler(async (req: Request) => {
-  const user = await requireUser();
+  const user = await requireUserFromHeader(req)
   const { searchParams } = new URL(req.url);
 
   // Pagination parameters
   const page = parseInt(searchParams.get('page') || '1');
-  const pageSize = parseInt(searchParams.get('pageSize') || searchParams.get('limit') || '20');
+  const pageSize = parseInt(searchParams.get('pageSize') || searchParams.get('limit') || String(API_CONFIG.DEFAULT_PAGE_SIZE));
   const type = searchParams.get('type') || undefined;
   const includeCollectionArticles = searchParams.get('includeCollectionArticles') === 'true';
+
+  // Check cache (skip for warmup requests)
+  const isWarmup = req.headers.get('x-warmup') === 'true'
+  const cacheKey = cacheKeys.articles(user.id, page, pageSize)
+
+  if (!isWarmup) {
+    const cached = devCache.get(cacheKey)
+    if (cached) {
+      return createSuccessResponse(cached)
+    }
+  }
 
   const result = await ArticlesRepository.findAll(user.id, {
     page,
@@ -41,8 +39,7 @@ export const GET = apiHandler(async (req: Request) => {
     type,
     includeCollectionArticles
   });
-
-  return createSuccessResponse({
+  const response = {
     articles: result.items,
     pagination: {
       total: result.total,
@@ -52,15 +49,22 @@ export const GET = apiHandler(async (req: Request) => {
       hasNext: result.hasNext,
       hasPrevious: result.hasPrevious,
     }
-  });
-});
+  };
+
+  // Cache the response (60 seconds TTL)
+  if (!isWarmup) {
+    devCache.set(cacheKey, response, API_CONFIG.CACHE_TTL_SECONDS)
+  }
+
+  return createSuccessResponse(response);
+})
 
 /**
  * POST /api/articles
  * Create a new article
  */
 export const POST = apiHandler(async (req: Request) => {
-  const user = await requireUser();
+  const user = await requireUserFromHeader(req);
   const json = await req.json();
 
   // Validate input
@@ -68,10 +72,13 @@ export const POST = apiHandler(async (req: Request) => {
 
   const article = await ArticlesRepository.create(user.id, data);
 
+  // Invalidate user's article cache
+  devCache.invalidatePattern(`articles:${user.id}:*`);
+
   // Trigger Indexing (Chunking + Embedding) - Fire and Forget (Node.js runtime safe)
   (async () => {
     console.log(`[Background] Starting indexing for manually created article ${article.id}...`);
-    
+
     // 1. Create Job Record
     let job;
     try {
@@ -91,13 +98,13 @@ export const POST = apiHandler(async (req: Request) => {
     // 2. Process Article
     try {
       await IndexingService.processArticle(article.id, user.id);
-      
+
       // 3. Complete Job
       if (job) {
         await prisma.job.update({
           where: { id: job.id },
-          data: { 
-            status: 'COMPLETED', 
+          data: {
+            status: 'COMPLETED',
             progress: 100,
             result: { processed: 1, total: 1 }
           }
@@ -109,14 +116,14 @@ export const POST = apiHandler(async (req: Request) => {
       if (job) {
         await prisma.job.update({
           where: { id: job.id },
-          data: { 
-            status: 'FAILED', 
+          data: {
+            status: 'FAILED',
             result: { error: String(e) }
           }
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
-  })().catch(e => console.error('[Background] Async execution failed', e));
+  })().catch((e: any) => console.error('[Background] Async execution failed', e));
 
   return createSuccessResponse({ article }, 201);
 });

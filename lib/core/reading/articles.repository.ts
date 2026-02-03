@@ -69,6 +69,7 @@ export class ArticlesRepository {
       hasPrevious: page > 1,
     };
   }
+  
 
   static async findById(id: string, userId: string, options?: { withContent?: boolean }) {
     const { withContent = false } = options || {};

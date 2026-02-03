@@ -60,7 +60,7 @@ export function createErrorResponse(error: unknown) {
   );
 }
 
-// Higher-order function for API handlers
+
 export function apiHandler(
   handler: (req: Request, context?: any) => Promise<NextResponse>
 ) {

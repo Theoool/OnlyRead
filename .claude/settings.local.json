@@ -21,7 +21,10 @@
       "Bash(npx prisma migrate:*)",
       "Bash(npx prisma db execute:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(pnpm install:*)",
+      "Bash(if exist .env.local type .env.local:*)",
+      "Bash(if exist .env type .env)"
     ]
   }
 }

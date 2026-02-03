@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/infrastructure/database/prisma'
 import { NextResponse } from 'next/server'
 import { generateEmbedding } from '@/lib/infrastructure/ai/embedding'
+import { API_CONFIG } from '@/lib/config/constants'
 
 // GET - Full-text search across concepts and articles
 export async function GET(req: Request) {
@@ -9,7 +10,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const query = searchParams.get('q') || ''
     const type = searchParams.get('type') || 'all' // all, concepts, articles
-    const limit = parseInt(searchParams.get('limit') || '20')
+    const limit = parseInt(searchParams.get('limit') || String(API_CONFIG.DEFAULT_SEARCH_LIMIT))
     const useVector = searchParams.get('vector') !== 'false' // Default to true
 
     if (!query || query.trim().length === 0) {
@@ -72,63 +73,63 @@ async function searchCloud(query: string, type: string, limit: number, useVector
     // 1. Keyword Search - Concepts
     shouldSearchConcepts
       ? prisma.concept.findMany({
-          where: {
-            userId: user.id,
-            deletedAt: null,
-            OR: [
-              { term: { contains: query, mode: 'insensitive' } },
-              { myDefinition: { contains: query, mode: 'insensitive' } },
-              { myExample: { contains: query, mode: 'insensitive' } },
-              { aiDefinition: { contains: query, mode: 'insensitive' } },
-            ],
-          },
-          take: limit,
-          select: {
-            id: true,
-            term: true,
-            myDefinition: true,
-            myExample: true,
-            confidence: true,
-            tags: true,
-            reviewCount: true,
-            nextReviewDate: true,
-            createdAt: true,
-            sourceArticleId: true,
-          },
-        })
+        where: {
+          userId: user.id,
+          deletedAt: null,
+          OR: [
+            { term: { contains: query, mode: 'insensitive' } },
+            { myDefinition: { contains: query, mode: 'insensitive' } },
+            { myExample: { contains: query, mode: 'insensitive' } },
+            { aiDefinition: { contains: query, mode: 'insensitive' } },
+          ],
+        },
+        take: limit,
+        select: {
+          id: true,
+          term: true,
+          myDefinition: true,
+          myExample: true,
+          confidence: true,
+          tags: true,
+          reviewCount: true,
+          nextReviewDate: true,
+          createdAt: true,
+          sourceArticleId: true,
+        },
+      })
       : Promise.resolve([]),
 
     // 2. Keyword Search - Articles
     shouldSearchArticles
       ? prisma.article.findMany({
-          where: {
-            userId: user.id,
-            deletedAt: null,
-            OR: [
-              { title: { contains: query, mode: 'insensitive' } },
-              { domain: { contains: query, mode: 'insensitive' } },
-              {
-                body: {
-                  content: { contains: query, mode: 'insensitive' }
-                }
-              }
-            ],
-          },
-          take: limit,
-          select: {
-            id: true,
-            title: true,
-            type: true,
-            domain: true,
-            progress: true,
-            createdAt: true,
-            body: {
-              select: {
-                content: true
+        where: {
+          userId: user.id,
+          deletedAt: null,
+          OR: [
+            { title: { contains: query, mode: 'insensitive' } },
+            { domain: { contains: query, mode: 'insensitive' } },
+            {
+              body: {
+                content: { contains: query, mode: 'insensitive' }
               }
             }
-          },
-        })
+          ],
+        },
+        take: limit,
+        select: {
+          id: true,
+          title: true,
+          type: true,
+          domain: true,
+          progress: true,
+          createdAt: true,
+          body: {
+            select: {
+              content: true
+            }
+          }
+        },
+      })
       : Promise.resolve([]),
 
     // 3. Vector Search - Concepts
@@ -142,7 +143,7 @@ async function searchCloud(query: string, type: string, limit: number, useVector
           FROM concepts
           WHERE user_id = ${user.id}::uuid
             AND deleted_at IS NULL
-            AND 1 - (embedding <=> ${JSON.stringify(queryVector)}::vector(1536)) > 0.6
+            AND 1 - (embedding <=> ${JSON.stringify(queryVector)}::vector(1536)) > ${API_CONFIG.VECTOR_SIMILARITY_THRESHOLD}
           ORDER BY similarity DESC
           LIMIT ${limit};
         `
@@ -159,7 +160,7 @@ async function searchCloud(query: string, type: string, limit: number, useVector
           LEFT JOIN article_bodies b ON a.id = b.article_id
           WHERE a.user_id = ${user.id}::uuid
             AND a.deleted_at IS NULL
-            AND 1 - (a.embedding <=> ${JSON.stringify(queryVector)}::vector(1536)) > 0.6
+            AND 1 - (a.embedding <=> ${JSON.stringify(queryVector)}::vector(1536)) > ${API_CONFIG.VECTOR_SIMILARITY_THRESHOLD}
           ORDER BY similarity DESC
           LIMIT ${limit};
         `
@@ -168,7 +169,7 @@ async function searchCloud(query: string, type: string, limit: number, useVector
 
   // Process and Merge Concepts
   const conceptMap = new Map<string, any>()
-  
+
   // Add keyword results first
   dbConcepts.forEach((c: any) => {
     conceptMap.set(c.id, {
@@ -183,7 +184,7 @@ async function searchCloud(query: string, type: string, limit: number, useVector
   vectorConcepts.forEach((c: any) => {
     const existing = conceptMap.get(c.id)
     const vectorScore = (c.similarity * 10) // Normalize similarity (0-1) to score (0-10)
-    
+
     if (existing) {
       // Boost existing keyword match
       existing.relevanceScore += vectorScore
@@ -205,7 +206,7 @@ async function searchCloud(query: string, type: string, limit: number, useVector
   dbArticles.forEach((a: any) => {
     const content = a.body?.content || ''
     const { body, ...rest } = a
-    
+
     articleMap.set(a.id, {
       ...rest,
       relevanceScore: calculateArticleRelevance({ ...rest, content }, query),
@@ -219,7 +220,7 @@ async function searchCloud(query: string, type: string, limit: number, useVector
   vectorArticles.forEach((a: any) => {
     const existing = articleMap.get(a.id)
     const vectorScore = (a.similarity * 5) // Normalize
-    
+
     if (existing) {
       existing.relevanceScore += vectorScore
       existing.source = 'hybrid'
@@ -234,9 +235,9 @@ async function searchCloud(query: string, type: string, limit: number, useVector
     }
   })
 
-  return { 
-    concepts: Array.from(conceptMap.values()), 
-    articles: Array.from(articleMap.values()) 
+  return {
+    concepts: Array.from(conceptMap.values()),
+    articles: Array.from(articleMap.values())
   }
 }
 

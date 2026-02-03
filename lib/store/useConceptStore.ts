@@ -6,6 +6,7 @@
 
 import { create } from 'zustand'
 import * as conceptsAPI from '@/lib/core/learning/concepts.service'
+import { Message } from '@langchain/core/messages'
 
 export interface ConceptData {
   id?: string
@@ -92,9 +93,9 @@ export const useConceptStore = create<ConceptStore>((set, get) => ({
         loading: false,
       }))
     } catch (error: any) {
-      console.error('Failed to add concept:', error)
+    
       set({
-        error: error.message || 'Failed to add concept',
+        error: error.message || '添加失败',
         loading: false,
       })
       throw error
@@ -119,10 +120,10 @@ export const useConceptStore = create<ConceptStore>((set, get) => ({
         delete newConcepts[term]
         return { concepts: newConcepts, loading: false }
       })
-    } catch (error: any) {
+    } catch (error:any) {
       console.error('Failed to remove concept:', error)
       set({
-        error: error.message || 'Failed to remove concept',
+        error: error.message || '删除失败',
         loading: false,
       })
       throw error

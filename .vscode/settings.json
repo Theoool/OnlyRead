@@ -1,5 +1,7 @@
 {
   "cSpell.words": [
     "epubjs"
-  ]
+  ],
+  "WillLuke.nextjs.addTypesOnSave": true,
+  "WillLuke.nextjs.hasPrompted": true
 }

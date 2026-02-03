@@ -1,23 +1,16 @@
 import { NextResponse } from 'next/server';
-import { getOrCreateUser } from '@/lib/supabase/user';
-import { apiHandler, createSuccessResponse } from '@/lib/infrastructure/api/response';
+import { requireUserFromHeader } from '@/lib/supabase/user';
+import { apiHandler, createSuccessResponse } from '@/lib/infrastructure/error/response';
 import { ConceptsRepository } from '@/lib/core/learning/concepts.repository';
 import { ConceptSchema, ConceptUpdateSchema } from '@/lib/shared/validation/schemas';
 import { UnauthorizedError } from '@/lib/infrastructure/error';
 
-// Helper to get authenticated user or throw
-async function requireUser() {
-  const user = await getOrCreateUser();
-  if (!user) {
-    throw new UnauthorizedError();
-  }
-  return user;
-}
+
 
 export const GET = apiHandler(async (req: Request) => {
-  const user = await requireUser();
+  const user = await requireUserFromHeader(req);
   const { searchParams } = new URL(req.url);
-  
+
   const due = searchParams.get('due') === 'true';
   const limit = parseInt(searchParams.get('limit') || '50');
 
@@ -26,7 +19,7 @@ export const GET = apiHandler(async (req: Request) => {
 });
 
 export const POST = apiHandler(async (req: Request) => {
-  const user = await requireUser();
+  const user = await requireUserFromHeader(req);
   const json = await req.json();
 
   // Validate input
@@ -37,7 +30,7 @@ export const POST = apiHandler(async (req: Request) => {
 });
 
 export const PUT = apiHandler(async (req: Request) => {
-  const user = await requireUser();
+  const user = await requireUserFromHeader(req);
   const json = await req.json();
 
   // Validate input
@@ -48,7 +41,7 @@ export const PUT = apiHandler(async (req: Request) => {
 });
 
 export const DELETE = apiHandler(async (req: Request) => {
-  const user = await requireUser();
+  const user = await requireUserFromHeader(req);
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
 

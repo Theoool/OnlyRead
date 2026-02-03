@@ -1,15 +1,13 @@
 import { z } from 'zod'
-import { createClient } from '@/lib/supabase/server'
+import { requireUserFromHeader } from '@/lib/supabase/user'
 import { prisma } from '@/lib/infrastructure/database/prisma'
 import { generateEmbedding } from '@/lib/infrastructure/ai/embedding'
-import { createErrorResponse, createSuccessResponse } from '@/lib/infrastructure/api/response'
+import { createErrorResponse, createSuccessResponse } from '@/lib/infrastructure/error/response'
 import { ChatOpenAI } from '@langchain/openai'
 import { ChatPromptTemplate } from '@langchain/core/prompts'
+import { QaRequestSchema } from '@/lib/shared/validation/schemas'
+import { API_CONFIG } from '@/lib/config/constants'
 
-const QaRequestSchema = z.object({
-  question: z.string().min(1),
-  topK: z.number().int().min(1).max(12).optional().default(6),
-})
 
 const AnswerSchema = z.object({
   answer: z.string().describe("回答正文（中文）"),
@@ -24,14 +22,7 @@ const AnswerSchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return createSuccessResponse({ answer: '', sources: [], error: 'Unauthorized' }, 401)
-    }
+    const user = await requireUserFromHeader(req);
 
     const json = await req.json()
     const { question, topK } = QaRequestSchema.parse(json)
@@ -90,11 +81,11 @@ export async function POST(req: Request) {
       sources.length === 0
         ? '（没有检索到可用的资料片段）'
         : sources
-            .map(
-              (s, idx) =>
-                `【资料${idx + 1}】标题：${s.title}\n来源：${s.domain || ''}\n片段：\n${s.excerpt}`
-            )
-            .join('\n\n')
+          .map(
+            (s, idx) =>
+              `【资料${idx + 1}】标题：${s.title}\n来源：${s.domain || ''}\n片段：\n${s.excerpt}`
+          )
+          .join('\n\n')
 
     if (!process.env.AI_MODEL_NAME) {
       return createSuccessResponse({ answer: '', sources: [], error: 'AI_MODEL_NAME not set' }, 500)
@@ -140,16 +131,16 @@ export async function POST(req: Request) {
         sources,
       })
     } catch (e) {
-       console.error("QA Generation failed", e);
-       // Provide a graceful fallback or error
-       return createSuccessResponse({ 
-         answer: '抱歉，生成回答时遇到错误。', 
-         confidence: 0, 
-         citations: [], 
-         followUpQuestions: [], 
-         sources, 
-         error: 'Generation failed' 
-       }, 200) // Return 200 so UI shows the error message in the answer box if preferred, or 500.
+      console.error("QA Generation failed", e);
+      // Provide a graceful fallback or error
+      return createSuccessResponse({
+        answer: '抱歉，生成回答时遇到错误。',
+        confidence: 0,
+        citations: [],
+        followUpQuestions: [],
+        sources,
+        error: 'Generation failed'
+      }, 200) // Return 200 so UI shows the error message in the answer box if preferred, or 500.
     }
 
   } catch (error) {

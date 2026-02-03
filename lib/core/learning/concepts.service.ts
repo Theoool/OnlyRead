@@ -58,6 +58,58 @@ export async function getConcept(term: string): Promise<ConceptData | undefined>
 }
 
 /**
+ * Batch fetch concepts by terms
+ * Optimized for checking which concepts exist in the reading content
+ */
+export async function getConceptsByTerms(terms: string[]): Promise<ConceptData[]> {
+  if (!terms.length) return []
+
+  const response = await post<{ concepts: ConceptData[] }>('/api/concepts/by-terms', {
+    terms: terms.slice(0, 50), // Limit to 50 terms per request
+  })
+  return response.concepts || []
+}
+
+/**
+ * Filter concepts with advanced criteria
+ */
+export async function filterConcepts(params: {
+  tags?: string[]
+  mastered?: boolean | 'all'
+  due?: boolean
+  limit?: number
+  sortBy?: 'recent' | 'name' | 'interval' | 'reviews'
+}): Promise<{
+  concepts: ConceptData[]
+  total: number
+  appliedFilters: any
+  availableTags: string[]
+}> {
+  const query = new URLSearchParams()
+  if (params.tags?.length) query.set('tags', params.tags.join(','))
+  if (params.mastered !== undefined && params.mastered !== 'all') {
+    query.set('mastered', String(params.mastered))
+  }
+  if (params.due) query.set('due', 'true')
+  if (params.limit) query.set('limit', String(params.limit))
+  if (params.sortBy) query.set('sortBy', params.sortBy)
+
+  return get<any>(`/api/concepts/filter?${query.toString()}`)
+}
+
+/**
+ * Check if a concept exists by term
+ */
+export async function checkConceptExists(term: string): Promise<{ exists: boolean; concept?: ConceptData }> {
+  try {
+    const response = await get<{ exists: boolean; concept?: ConceptData }>(`/api/concepts/by-terms?term=${encodeURIComponent(term)}`)
+    return { exists: response.exists, concept: response.concept }
+  } catch {
+    return { exists: false }
+  }
+}
+
+/**
  * Create a new concept
  */
 export async function createConcept(concept: Omit<ConceptData, 'id'>): Promise<ConceptData> {

@@ -39,9 +39,10 @@ model User {
   readingSessions  ReadingSession[]
   readingStats     ReadingStats?
   jobs             Job[]
+  learningSessions LearningSession[]
   tags             Tag[]
   articleChunks    ArticleChunk[]
-
+  @@index([id])
   @@map("users")
 }
 
@@ -343,17 +344,46 @@ model ReadingStats {
   id              String    @id @default(uuid()) @db.Uuid
   userId          String    @unique @map("user_id") @db.Uuid
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   totalArticles   Int       @default(0) @map("total_articles")
   totalReadingTime BigInt   @default(0) @map("total_reading_time")
   totalSessions   Int       @default(0) @map("total_sessions")
   currentStreak   Int       @default(0) @map("current_streak")
   longestStreak   Int       @default(0) @map("longest_streak")
-
   lastReadDate    DateTime? @map("last_read_date") @db.Timestamptz
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-
   @@map("reading_stats")
   @@index([userId])
+}
+
+// ============================================
+// 9. Adaptive Learning & Chat
+// ============================================
+model LearningSession {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  title           String?  @db.VarChar(255)
+  context         Json?    @default("{}") // Stores article IDs, mastery, etc.
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  messages        LearningMessage[]
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("learning_sessions")
+}
+
+model LearningMessage {
+  id              String          @id @default(uuid()) @db.Uuid
+  sessionId       String          @map("session_id") @db.Uuid
+  role            String          @db.VarChar(50) // 'user' | 'assistant'
+  content         String?         @db.Text
+  // Structured Data
+  ui              Json?           // The Generative UI Payload
+  sources         Json?           // The Source Evidence Payload
+  createdAt       DateTime        @default(now()) @map("created_at")
+  session         LearningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  @@index([sessionId])
+  @@index([sessionId, createdAt])
+  @@map("learning_messages")
 }
