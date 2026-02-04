@@ -58,7 +58,7 @@ export const retrieverNode = async (state: any) => {
           articles = [];
       }
 
-      const sources = articles.map(a => ({
+      const sources = articles.map((a: any) => ({
         articleId: a.id,
         title: a.title || '(untitled)',
         domain: a.domain || null,
@@ -67,13 +67,13 @@ export const retrieverNode = async (state: any) => {
         similarity: 1.0 // Implicit high relevance
       }));
 
-      const contextText = sources.map((s, idx) => 
+      const contextText = sources.map((s: any, idx: number) => 
         `【Article ${idx + 1}】Title: ${s.title}\nSummary: ${s.content}`
       ).join('\n\n');
 
       return {
         documents: contextText,
-        sources: sources.map(s => ({
+        sources: sources.map((s: any) => ({
           articleId: s.articleId,
           title: s.title,
           excerpt: s.excerpt,
@@ -133,7 +133,7 @@ console.log();
         a.id as "articleId",
         a.title,
         a.domain,
-        1 - (c.embedding <=> ${JSON.stringify(queryVector)}::vector(1536)) as similarity
+        1 - (c.embedding <=> ${JSON.stringify(queryVector)}::vector(1536)) as ksimilarity
         FROM article_chunks c
         JOIN articles a ON c.article_id = a.id
         WHERE c.user_id = ${userId}::uuid

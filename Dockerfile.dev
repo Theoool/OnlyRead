@@ -16,6 +16,8 @@ RUN pnpm install
 # Generate Prisma Client
 RUN pnpm prisma generate
 
+
+RUN pnpm prisma db push
 # Copy application files
 COPY . .
 

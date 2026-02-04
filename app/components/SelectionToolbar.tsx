@@ -6,6 +6,7 @@ import { Sparkles, BookOpen } from "lucide-react";
 
 interface SelectionToolbarProps {
   onActivate: (selection: string, rect: DOMRect) => void;
+  onAskAi?: (selection: string) => void;
   disabled?: boolean;
 }
 
@@ -14,9 +15,9 @@ const DEBOUNCE_DELAY = 150;
 // 最小选择长度
 const MIN_LENGTH = 1;
 // 最大选择长度
-const MAX_LENGTH = 100;
+const MAX_LENGTH = 200; // Increased to allow longer questions context
 
-export function SelectionToolbar({ onActivate, disabled }: SelectionToolbarProps) {
+export function SelectionToolbar({ onActivate, onAskAi, disabled }: SelectionToolbarProps) {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const [selectionText, setSelectionText] = useState("");
   const [isVisible, setIsVisible] = useState(false);
@@ -80,7 +81,7 @@ export function SelectionToolbar({ onActivate, disabled }: SelectionToolbarProps
       const rect = range.getBoundingClientRect();
 
       // 计算位置：在选择上方居中
-      const toolbarWidth = 80; // 估计工具栏宽度
+      const toolbarWidth = onAskAi ? 160 : 80; // Adjust width based on buttons
       const left = Math.max(16, rect.left + rect.width / 2 - toolbarWidth / 2);
       const top = Math.max(16, rect.top - 50); // 50px 上方
 
@@ -95,7 +96,7 @@ export function SelectionToolbar({ onActivate, disabled }: SelectionToolbarProps
     } else {
       setIsVisible(false);
     }
-  }, [disabled, isValidSelection, sanitizeSelection, isVisible]);
+  }, [disabled, isValidSelection, sanitizeSelection, isVisible, onAskAi]);
 
   useEffect(() => {
     const debouncedHandler = () => {
@@ -130,6 +131,14 @@ export function SelectionToolbar({ onActivate, disabled }: SelectionToolbarProps
     }
   }, [onActivate, selectionText]);
 
+  const handleAskAi = useCallback(() => {
+    if (onAskAi) {
+        onAskAi(selectionText);
+        setIsVisible(false);
+        lastSelectionRef.current = "";
+    }
+  }, [onAskAi, selectionText]);
+
   return (
     <AnimatePresence>
       {isVisible && position && (
@@ -141,27 +150,32 @@ export function SelectionToolbar({ onActivate, disabled }: SelectionToolbarProps
           style={{ top: position.top, left: position.left }}
           className="fixed z-50"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-white dark:bg-black rounded-lg p-1 shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-zinc-200 dark:border-zinc-800 backdrop-blur-sm">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 handleActivate();
               }}
-              className="group flex items-center gap-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black px-4 py-2 rounded-full shadow-lg hover:scale-105 transition-transform active:scale-95"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-zinc-700 dark:text-zinc-300"
             >
-              <Sparkles className="w-3.5 h-3.5 text-purple-400 group-hover:animate-pulse" />
-              <span className="text-xs font-medium">概念</span>
+              <BookOpen className="w-4 h-4 text-purple-500" />
+              <span className="text-sm font-medium">Concept</span>
             </button>
-
-            {/* 显示选择文本长度提示（可选） */}
-            {selectionText.length > 20 && (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="bg-zinc-800 dark:bg-zinc-700 text-white text-[10px] px-2 py-1 rounded-full shadow-lg"
-              >
-                {selectionText.length} 字符
-              </motion.div>
+            
+            {onAskAi && (
+                <>
+                    <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-800 mx-1" />
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleAskAi();
+                        }}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-zinc-700 dark:text-zinc-300"
+                    >
+                        <Sparkles className="w-4 h-4 text-indigo-500" />
+                        <span className="text-sm font-medium">Ask AI</span>
+                    </button>
+                </>
             )}
           </div>
         </motion.div>

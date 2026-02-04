@@ -69,18 +69,24 @@ export function ChapterListSidebar({
                 <button
                   key={chapter.id}
                   onClick={() => handleChapterClick(chapter.id)}
-                  className={`w-full text-left rounded-lg px-3 py-2.5 transition-colors text-xs flex items-center gap-2 ${
+                  className={`w-full text-left rounded-lg px-3 py-2.5 transition-colors text-sm flex items-center gap-3 group ${
                     chapter.id === currentArticleId
-                      ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-900/60 dark:text-zinc-50'
-                      : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-900/30'
+                      ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50 font-medium'
+                      : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-900/50'
                   }`}
                 >
-                  <span className="w-5 h-5 flex items-center justify-center rounded-md bg-zinc-200 dark:bg-zinc-800 text-[10px] font-mono shrink-0">
+                  <span className={`w-6 h-6 flex items-center justify-center rounded-md text-xs font-mono shrink-0 transition-colors ${
+                      chapter.id === currentArticleId 
+                      ? 'bg-white dark:bg-black shadow-sm text-zinc-900 dark:text-white'
+                      : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 group-hover:text-zinc-700 dark:group-hover:text-zinc-300'
+                  }`}>
                     {chapter.chapterNumber}
                   </span>
                   <span className="flex-1 truncate">{chapter.title}</span>
                   {chapter.isCompleted && (
-                    <Check className="w-3 h-3 text-green-600 dark:text-green-400 shrink-0" />
+                    <div className="w-5 h-5 rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center shrink-0">
+                        <Check className="w-3 h-3 text-green-600 dark:text-green-400" />
+                    </div>
                   )}
                 </button>
               ))}

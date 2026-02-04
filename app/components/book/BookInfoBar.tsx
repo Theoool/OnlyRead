@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Clock } from "lucide-react";
+import { BookOpen, Clock, Sparkles } from "lucide-react";
 
 interface BookInfoBarProps {
   collection: {
@@ -19,6 +19,7 @@ interface BookInfoBarProps {
   currentChapter: number;
   totalChapters: number;
   bookProgress: number;
+  onAiToggle?: () => void;
 }
 
 export function BookInfoBar({
@@ -27,6 +28,7 @@ export function BookInfoBar({
   currentChapter,
   totalChapters,
   bookProgress,
+  onAiToggle,
 }: BookInfoBarProps) {
   return (
     <div className="fixed top-0 left-0 right-0 z-50 bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-6 py-3 pointer-events-auto">
@@ -48,6 +50,15 @@ export function BookInfoBar({
 
         {/* 右侧：进度条 */}
         <div className="flex items-center gap-3">
+          {onAiToggle && (
+              <button
+                onClick={onAiToggle}
+                className="p-2 mr-2 bg-white dark:bg-zinc-800 rounded-full border border-zinc-200 dark:border-zinc-700 hover:scale-105 transition-transform group"
+              >
+                  <Sparkles className="w-4 h-4 text-indigo-500 group-hover:animate-pulse" />
+              </button>
+          )}
+
           <div className="text-right">
             <div className="text-[10px] text-zinc-500 uppercase tracking-wider">全书进度</div>
             <div className="text-lg font-mono font-bold text-zinc-900 dark:text-zinc-100">

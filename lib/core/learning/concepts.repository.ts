@@ -167,40 +167,4 @@ export class ConceptsRepository {
       WHERE id = ${id}::uuid
     `;
   }
-
-  /**
-   * Find semantically similar concepts
-   */
-  static async findRelated(userId: string, text: string, limit = 5, threshold = 0.7) {
-    const embedding = await generateEmbedding(text);
-    const vectorStr = `[${embedding.join(',')}]`;
-
-    // Perform similarity search using cosine distance (<=> operator is distance, 1 - distance = similarity)
-    // We want 1 - (embedding <=> query) > threshold
-    // <=> returns 0..2 (0 is identical) for normalized vectors? 
-    // Actually cosine distance is 1 - cosine similarity. 
-    // So order by embedding <=> vector ASC.
-    
-    const results = await prisma.$queryRaw`
-      SELECT 
-        id, 
-        term, 
-        my_definition as "myDefinition", 
-        1 - (embedding <=> ${vectorStr}::vector(1536)) as similarity
-      FROM concepts
-      WHERE user_id = ${userId}::uuid
-        AND deleted_at IS NULL
-        AND embedding IS NOT NULL
-        AND 1 - (embedding <=> ${vectorStr}::vector(1536)) > ${threshold}
-      ORDER BY similarity DESC
-      LIMIT ${limit};
-    `;
-
-    return results as Array<{
-      id: string;
-      term: string;
-      myDefinition: string;
-      similarity: number;
-    }>;
-  }
 }

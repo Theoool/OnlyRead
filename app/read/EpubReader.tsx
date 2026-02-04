@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { LocalBook } from '@/lib/db';
 import { useTheme } from 'next-themes';
-import { Loader2, List, X, ArrowLeft, Minus, Plus, Sparkles } from 'lucide-react';
+import { Loader2, List, X, ArrowLeft, Minus, Plus, Sparkles, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useConceptStore, ConceptData } from '@/lib/store/useConceptStore';
@@ -11,16 +11,10 @@ import { ConceptHud } from '@/app/components/ConceptHud';
 import { ConceptCard } from '@/app/components/ConceptCard';
 import { twMerge } from 'tailwind-merge';
 import { EpubView } from 'react-reader';
+import { CopilotWidget } from '@/app/components/ai/CopilotWidget';
 
 interface EpubReaderProps {
   book: LocalBook;
-}
-
-// 选择状态管理
-interface SelectionState {
-  text: string;
-  cfiRange: string;
-  isSelecting: boolean;
 }
 
 export function EpubReader({ book }: EpubReaderProps) {
@@ -29,20 +23,45 @@ export function EpubReader({ book }: EpubReaderProps) {
   const renditionRef = useRef<any>(null);
   const [isTocOpen, setIsTocOpen] = useState(false);
   const [isHudOpen, setIsHudOpen] = useState(false);
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false); // NEW: Sidebar state
   const [fontSize, setFontSize] = useState(100);
   const router = useRouter();
   const { theme } = useTheme();
 
-  // 选择状态
-  const [selectionState, setSelectionState] = useState<SelectionState>({
+  // Toolbar State
+  const [toolbarState, setToolbarState] = useState<{
+    isVisible: boolean;
+    position: { top: number; left: number };
+    text: string;
+    cfiRange: string;
+  }>({
+    isVisible: false,
+    position: { top: 0, left: 0 },
     text: '',
-    cfiRange: '',
-    isSelecting: false,
+    cfiRange: ''
   });
 
   // Concept Store
   const { concepts, addConcept } = useConceptStore();
   const [activeCard, setActiveCard] = useState<{ x: number; y: number; term: string; savedData?: ConceptData } | null>(null);
+
+  // Copilot Context
+  const [copilotContext, setCopilotContext] = useState<{
+      articleIds: string[];
+      collectionId?: string;
+      selection?: string;
+  }>({
+      articleIds: [], // Local books might not have IDs yet, or we use a placeholder
+      collectionId: undefined,
+      selection: undefined
+  });
+
+  // Set Copilot context when book loads
+  useEffect(() => {
+    if (book.id) {
+        setCopilotContext(prev => ({ ...prev, articleIds: [book.id] }));
+    }
+  }, [book.id]);
 
   // 计算可见卡片
   const visibleCards = useMemo(() => {
@@ -107,6 +126,7 @@ export function EpubReader({ book }: EpubReaderProps) {
           e.preventDefault();
           setIsTocOpen(false);
           setIsHudOpen(false);
+          setIsCopilotOpen(false);
           setActiveCard(null);
           break;
       }
@@ -131,36 +151,40 @@ export function EpubReader({ book }: EpubReaderProps) {
       }
   }, [fontSize]);
 
-  // 处理选择激活 - 增强版
-  const handleSelectionActivate = useCallback((text: string, rect: DOMRect, cfiRange: string) => {
+  // 处理选择激活
+  const handleSelectionActivate = useCallback((text: string, rect: { x: number, y: number }, cfiRange: string) => {
     // 验证选择文本
     if (!text || text.trim().length < 1 || text.length > 100) return;
 
     const saved = concepts[text];
     setActiveCard({
-        x: rect.left,
-        y: rect.top,
+        x: rect.x,
+        y: rect.y,
         term: text,
         savedData: saved
     });
-
-    // 保存选择状态以便后续使用
-    setSelectionState({
-      text,
-      cfiRange,
-      isSelecting: true,
-    });
+    
+    // 隐藏工具栏
+    setToolbarState(prev => ({ ...prev, isVisible: false }));
   }, [concepts]);
+
+  // NEW: Handle Ask AI
+  const handleAskAI = useCallback((text: string) => {
+      // 1. Set context
+      setCopilotContext(prev => ({ ...prev, selection: text }));
+      // 2. Open Sidebar
+      setIsCopilotOpen(true);
+      // 3. Hide Toolbar
+      setToolbarState(prev => ({ ...prev, isVisible: false }));
+  }, []);
 
   // 保存卡片
   const handleSaveCard = useCallback(async (data: ConceptData) => {
       try {
           await addConcept({
-              ...data,
-              sourceArticleId: book.id
+              ...data
           });
           setActiveCard(null);
-          setSelectionState(prev => ({ ...prev, isSelecting: false }));
 
           // 清除 EPUB 中的选择
           const rendition = renditionRef.current;
@@ -249,6 +273,19 @@ export function EpubReader({ book }: EpubReaderProps) {
                 }}
              />
 
+             {/* Copilot Toggle */}
+             <button
+                onClick={() => setIsCopilotOpen(!isCopilotOpen)}
+                className={twMerge(
+                    "flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-2 rounded-full border border-zinc-200/50 dark:border-zinc-800/50 transition-colors",
+                    isCopilotOpen ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                )}
+                title="AI 助手"
+             >
+                 <MessageSquare className="w-4 h-4" />
+                 <span className="text-xs font-medium hidden sm:inline">Copilot</span>
+             </button>
+
              <div className="flex items-center gap-1 bg-white/80 dark:bg-black/80 backdrop-blur-md px-2 py-1.5 rounded-full border border-zinc-200/50 dark:border-zinc-800/50">
                 <button
                   onClick={() => setFontSize(s => Math.max(80, s - 10))}
@@ -281,78 +318,132 @@ export function EpubReader({ book }: EpubReaderProps) {
        </header>
 
        {/* Reader Area */}
-       <div className="flex-1 w-full h-full relative z-10 overflow-hidden">
-           <EpubView
-              url={book.fileData}
-              location={location}
-              locationChanged={(loc: string | number) => setLocation(loc)}
-              tocChanged={(t) => setToc(t)}
-              epubOptions={{
-                  flow: 'scrolled',
-                  manager: 'continuous',
-                  width: '100%',
-                  height: '100%',
-              }}
-              getRendition={(rendition) => {
-                  renditionRef.current = rendition;
-                  updateTheme(rendition);
+       <div className="flex-1 w-full h-full relative z-10 overflow-hidden flex">
+           <div className="flex-1 relative">
+                <EpubView
+                    url={book.fileData}
+                    location={location}
+                    locationChanged={(loc: string | number) => setLocation(loc)}
+                    tocChanged={(t) => setToc(t)}
+                    epubOptions={{
+                        flow: 'scrolled',
+                        manager: 'continuous',
+                        width: '100%',
+                        height: '100%',
+                    }}
+                    getRendition={(rendition) => {
+                        renditionRef.current = rendition;
+                        updateTheme(rendition);
 
-                  // 增强的选择处理
-                  rendition.on('selected', (cfiRange: string, contents: any) => {
-                      try {
-                        const selection = contents.window.getSelection();
-                        if (!selection || selection.rangeCount === 0) return;
+                        // 增强的选择处理
+                        rendition.on('selected', (cfiRange: string, contents: any) => {
+                            try {
+                                const selection = contents.window.getSelection();
+                                if (!selection || selection.rangeCount === 0) return;
 
-                        // 获取所有选中的 range
-                        const range = selection.getRangeAt(0);
-                        const text = range.toString().trim();
+                                // 获取所有选中的 range
+                                const range = selection.getRangeAt(0);
+                                const text = range.toString().trim();
 
-                        if (!text || text.length < 1 || text.length > 100) return;
+                                if (!text || text.length < 1 || text.length > 300) { // Increased limit for AI context
+                                    setToolbarState(prev => ({ ...prev, isVisible: false }));
+                                    return;
+                                }
 
-                        // 获取 iframe
-                        const iframes = (rendition as any).manager?.container?.querySelectorAll('iframe');
-                        if (!iframes || iframes.length === 0) return;
+                                // 获取 iframe
+                                const iframes = (rendition as any).manager?.container?.querySelectorAll('iframe');
+                                if (!iframes || iframes.length === 0) return;
 
-                        // 找到包含选择的 iframe
-                        let targetIframe: HTMLIFrameElement | null = null;
-                        for (const iframe of Array.from(iframes)) {
-                          try {
-                            if (iframe.contentWindow === contents.window) {
-                              targetIframe = iframe;
-                              break;
+                                // 找到包含选择的 iframe
+                                let targetIframe: HTMLIFrameElement | null = null;
+                                for (const item of Array.from(iframes)) {
+                                const iframe = item as HTMLIFrameElement;
+                                try {
+                                    if (iframe.contentWindow === contents.window) {
+                                    targetIframe = iframe;
+                                    break;
+                                    }
+                                } catch (e) {
+                                    continue;
+                                }
+                                }
+
+                                if (!targetIframe) return;
+
+                                const coords = getSelectionCoordinates(range, targetIframe);
+                                if (!coords) return;
+
+                                // 确保坐标在视口内
+                                if (coords.x < 0 || coords.y < 0) return;
+
+                                // 显示工具栏而不是直接激活
+                                // 计算位置：在选择上方居中
+                                const toolbarWidth = 140; // Increased width
+                                const left = Math.max(16, coords.x + coords.width / 2 - toolbarWidth / 2);
+                                const top = Math.max(16, coords.y - 60);
+
+                                setToolbarState({
+                                    isVisible: true,
+                                    position: { top, left },
+                                    text,
+                                    cfiRange
+                                });
+
+                            } catch (error) {
+                                console.error('Error handling selection:', error);
                             }
-                          } catch (e) {
-                            continue;
-                          }
-                        }
+                        });
 
-                        if (!targetIframe) return;
+                        // 点击时关闭面板
+                        rendition.on('click', () => {
+                            setIsHudOpen(false);
+                            setIsTocOpen(false);
+                            // setIsCopilotOpen(false); // Don't close copilot on click
+                            setToolbarState(prev => ({ ...prev, isVisible: false }));
+                        });
 
-                        const coords = getSelectionCoordinates(range, targetIframe);
-                        if (!coords) return;
+                        // 位置变化时关闭卡片
+                        rendition.on('locationChanged', () => {
+                            setActiveCard(null);
+                            setToolbarState(prev => ({ ...prev, isVisible: false }));
+                        });
+                    }}
+                />
+           </div>
 
-                        // 确保坐标在视口内
-                        if (coords.x < 0 || coords.y < 0) return;
-
-                        handleSelectionActivate(text, coords, cfiRange);
-                      } catch (error) {
-                        console.error('Error handling selection:', error);
-                      }
-                  });
-
-                  // 点击时关闭面板
-                  rendition.on('click', () => {
-                      setIsHudOpen(false);
-                      setIsTocOpen(false);
-                      // 不要立即关闭 activeCard，让用户可以保存
-                  });
-
-                  // 位置变化时关闭卡片
-                  rendition.on('locationChanged', () => {
-                    setActiveCard(null);
-                  });
-              }}
-           />
+           {/* Copilot Sidebar */}
+           <AnimatePresence>
+                {isCopilotOpen && (
+                    <motion.div 
+                        initial={{ width: 0, opacity: 0 }}
+                        animate={{ width: 400, opacity: 1 }}
+                        exit={{ width: 0, opacity: 0 }}
+                        className="h-full border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl z-30"
+                    >
+                        <div className="flex flex-col h-full">
+                            <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
+                                <h3 className="font-semibold text-sm">AI Copilot</h3>
+                                <button onClick={() => setIsCopilotOpen(false)} className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                                <CopilotWidget 
+                                    mode="copilot"
+                                    variant="sidebar"
+                                    context={copilotContext}
+                                    initialMessages={copilotContext.selection ? [{
+                                        id: 'context-preview',
+                                        role: 'user',
+                                        content: `Selected Context: "${copilotContext.selection.substring(0, 50)}..."`,
+                                        createdAt: new Date().toISOString()
+                                    }] : []}
+                                />
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+           </AnimatePresence>
        </div>
 
        {/* Footer */}
@@ -365,7 +456,7 @@ export function EpubReader({ book }: EpubReaderProps) {
         <div className="flex items-center gap-6 text-[10px] font-mono text-zinc-400 uppercase tracking-widest bg-white/50 dark:bg-black/50 backdrop-blur px-6 py-2 rounded-full border border-zinc-100 dark:border-zinc-900/50">
           <span className="flex items-center gap-1.5">
             <span className="w-1 h-1 rounded-full bg-zinc-400" />
-            Epub 阅读器 · 选中文本查看概念
+            Epub 阅读器 · 选中文本查看概念或询问 AI
           </span>
         </div>
       </motion.footer>
@@ -426,18 +517,47 @@ export function EpubReader({ book }: EpubReaderProps) {
           )}
        </AnimatePresence>
 
-       {/* 选择提示 */}
+       {/* Selection Toolbar */}
        <AnimatePresence>
-         {selectionState.isSelecting && !activeCard && (
+         {toolbarState.isVisible && !activeCard && (
            <motion.div
-             initial={{ opacity: 0, y: 20 }}
-             animate={{ opacity: 1, y: 0 }}
-             exit={{ opacity: 0, y: 20 }}
-             className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 pointer-events-none"
+             initial={{ opacity: 0, y: 10, scale: 0.8 }}
+             animate={{ opacity: 1, y: 0, scale: 1 }}
+             exit={{ opacity: 0, y: 10, scale: 0.8 }}
+             transition={{ type: "spring", stiffness: 400, damping: 25 }}
+             style={{ top: toolbarState.position.top, left: toolbarState.position.left }}
+             className="fixed z-50"
            >
-             <div className="flex items-center gap-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black px-4 py-2 rounded-full shadow-lg text-xs">
-               <Sparkles className="w-3 h-3 text-purple-400" />
-               <span>选中了 "{selectionState.text.slice(0, 20)}{selectionState.text.length > 20 ? '...' : ''}"</span>
+             <div className="flex items-center gap-2 bg-white dark:bg-zinc-900 p-1 rounded-full shadow-lg border border-zinc-200 dark:border-zinc-800">
+               {/* Concept Button */}
+               <button
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   handleSelectionActivate(
+                     toolbarState.text, 
+                     { x: toolbarState.position.left, y: toolbarState.position.top + 50 }, 
+                     toolbarState.cfiRange
+                   );
+                 }}
+                 className="group flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 px-3 py-1.5 rounded-full transition-colors"
+               >
+                 <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+                 <span className="text-xs font-medium">概念</span>
+               </button>
+
+               <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-0.5" />
+
+               {/* Ask AI Button */}
+               <button
+                 onClick={(e) => {
+                    e.stopPropagation();
+                    handleAskAI(toolbarState.text);
+                 }}
+                 className="group flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-full transition-colors"
+               >
+                 <MessageSquare className="w-3.5 h-3.5" />
+                 <span className="text-xs font-medium">Ask AI</span>
+               </button>
              </div>
            </motion.div>
          )}

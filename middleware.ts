@@ -27,9 +27,10 @@ export async function middleware(request: NextRequest) {
     try {
         // Get session from Supabase
         const supabase = await createClient()
-        const { data: { session }, error } = await supabase.auth.getSession()
+        // Use getUser() instead of getSession() for security and to avoid warnings
+        const { data: { user }, error } = await supabase.auth.getUser()
 
-        if (error || !session) {
+        if (error || !user) {
             return NextResponse.json(
                 { error: 'Unauthorized', code: 'UNAUTHORIZED' },
                 { status: 401 }
@@ -38,8 +39,8 @@ export async function middleware(request: NextRequest) {
 
         // Inject user info into headers for downstream routes
         const requestHeaders = new Headers(request.headers)
-        requestHeaders.set('x-user-id', session.user.id)
-        requestHeaders.set('x-user-email', session.user.email || '')
+        requestHeaders.set('x-user-id', user.id)
+        requestHeaders.set('x-user-email', user.email || '')
 
         // Continue with modified headers
         return NextResponse.next({

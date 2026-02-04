@@ -31,7 +31,9 @@ function setCachedResult(selection: string, data: any): void {
   // 限制缓存大小
   if (cache.size > 1000) {
     const firstKey = cache.keys().next().value;
-    cache.delete(firstKey);
+    if (firstKey !== undefined) {
+      cache.delete(firstKey);
+    }
   }
 }
 

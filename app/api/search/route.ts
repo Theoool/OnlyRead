@@ -3,6 +3,18 @@ import { prisma } from '@/lib/infrastructure/database/prisma'
 import { NextResponse } from 'next/server'
 import { generateEmbedding } from '@/lib/infrastructure/ai/embedding'
 import { API_CONFIG } from '@/lib/config/constants'
+import { devCache } from '@/lib/infrastructure/cache/dev-cache'
+
+// Cached embedding wrapper
+async function getCachedEmbedding(text: string): Promise<number[]> {
+  const cacheKey = `embedding:${text}`;
+  const cached = devCache.get<number[]>(cacheKey);
+  if (cached) return cached;
+
+  const embedding = await generateEmbedding(text);
+  devCache.set(cacheKey, embedding, 3600 * 1000); // Cache for 1 hour
+  return embedding;
+}
 
 // GET - Full-text search across concepts and articles
 export async function GET(req: Request) {
@@ -12,6 +24,18 @@ export async function GET(req: Request) {
     const type = searchParams.get('type') || 'all' // all, concepts, articles
     const limit = parseInt(searchParams.get('limit') || String(API_CONFIG.DEFAULT_SEARCH_LIMIT))
     const useVector = searchParams.get('vector') !== 'false' // Default to true
+
+    // Get User ID from header (fastest) or Supabase (fallback)
+    let userId = req.headers.get('x-user-id');
+    if (!userId) {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) userId = user.id;
+    }
+
+    if (!userId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     if (!query || query.trim().length === 0) {
       return NextResponse.json({
@@ -25,7 +49,7 @@ export async function GET(req: Request) {
     const searchTerm = query.trim()
 
     // Parallel search execution
-    const { concepts, articles } = await searchCloud(searchTerm, type, limit, useVector)
+    const { concepts, articles } = await searchCloud(searchTerm, type, limit, useVector, userId)
 
     // Sort by relevance
     // Combine keyword matches and semantic matches
@@ -48,21 +72,14 @@ export async function GET(req: Request) {
 }
 
 // Search in cloud database
-async function searchCloud(query: string, type: string, limit: number, useVector: boolean) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { concepts: [], articles: [] }
-  }
-
+async function searchCloud(query: string, type: string, limit: number, useVector: boolean, userId: string) {
   const shouldSearchConcepts = type === 'all' || type === 'concepts'
   const shouldSearchArticles = type === 'all' || type === 'articles'
 
   let queryVector: number[] | null = null
   if (useVector) {
     try {
-      queryVector = await generateEmbedding(query)
+      queryVector = await getCachedEmbedding(query)
     } catch (e) {
       console.warn('Failed to generate embedding for search query:', e)
     }
@@ -74,7 +91,7 @@ async function searchCloud(query: string, type: string, limit: number, useVector
     shouldSearchConcepts
       ? prisma.concept.findMany({
         where: {
-          userId: user.id,
+          userId: userId,
           deletedAt: null,
           OR: [
             { term: { contains: query, mode: 'insensitive' } },
@@ -103,7 +120,7 @@ async function searchCloud(query: string, type: string, limit: number, useVector
     shouldSearchArticles
       ? prisma.article.findMany({
         where: {
-          userId: user.id,
+          userId: userId,
           deletedAt: null,
           OR: [
             { title: { contains: query, mode: 'insensitive' } },
@@ -141,7 +158,7 @@ async function searchCloud(query: string, type: string, limit: number, useVector
             "created_at" as "createdAt", "source_article_id" as "sourceArticleId",
             1 - (embedding <=> ${JSON.stringify(queryVector)}::vector(1536)) as similarity
           FROM concepts
-          WHERE user_id = ${user.id}::uuid
+          WHERE user_id = ${userId}::uuid
             AND deleted_at IS NULL
             AND 1 - (embedding <=> ${JSON.stringify(queryVector)}::vector(1536)) > ${API_CONFIG.VECTOR_SIMILARITY_THRESHOLD}
           ORDER BY similarity DESC
@@ -158,7 +175,7 @@ async function searchCloud(query: string, type: string, limit: number, useVector
             1 - (a.embedding <=> ${JSON.stringify(queryVector)}::vector(1536)) as similarity
           FROM articles a
           LEFT JOIN article_bodies b ON a.id = b.article_id
-          WHERE a.user_id = ${user.id}::uuid
+          WHERE a.user_id = ${userId}::uuid
             AND a.deleted_at IS NULL
             AND 1 - (a.embedding <=> ${JSON.stringify(queryVector)}::vector(1536)) > ${API_CONFIG.VECTOR_SIMILARITY_THRESHOLD}
           ORDER BY similarity DESC

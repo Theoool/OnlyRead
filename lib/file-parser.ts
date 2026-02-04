@@ -88,6 +88,13 @@ export class FileParser {
                      title = match[1].trim();
                  }
              }
+             
+             // Clean up title: remove asterisks, excessive spaces, and non-printable chars
+             title = title
+               .replace(/\*+/g, '')        // Remove markdown bold asterisks
+               .replace(/\s+/g, ' ')       // Normalize spaces
+               .replace(/[^\x20-\x7E\u4e00-\u9fa5]/g, '') // Keep basic ASCII and Chinese chars, remove controls
+               .trim();
 
              book.chapters.push({
                title: title,

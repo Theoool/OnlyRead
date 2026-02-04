@@ -24,7 +24,8 @@
       "Bash(git commit:*)",
       "Bash(pnpm install:*)",
       "Bash(if exist .env.local type .env.local:*)",
-      "Bash(if exist .env type .env)"
+      "Bash(if exist .env type .env)",
+      "Bash(pnpm list:*)"
     ]
   }
 }

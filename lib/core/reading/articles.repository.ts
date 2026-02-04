@@ -54,6 +54,11 @@ export class ArticlesRepository {
         createdAt: true,
         updatedAt: true,
         collectionId: true,
+        collection: {
+          select: {
+            title: true
+          }
+        },
         order: true,
         // No content here - Vertical Partitioning
       },

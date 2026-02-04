@@ -112,6 +112,9 @@ model Article {
   @@unique([collectionId, order])
   @@index([userId])
   @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, collectionId, createdAt(sort: Desc)])
+  @@index([userId, type, createdAt(sort: Desc)])
+  @@index([parentId])
   @@index([searchVector], type: Gin)
   @@map("articles")
 }

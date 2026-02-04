@@ -85,42 +85,45 @@ export function splitSentences(text: string): string[] {
  * Split text into semantic chunks for embedding
  * Uses a sliding window approach respecting paragraph boundaries where possible
  */
-export function chunkText(text: string, chunkSize: number = 600, overlap: number = 100): string[] {
+export function chunkText(text: string, chunkSize: number = 800, overlap: number = 100): string[] {
   if (!text) return [];
   const chunks: string[] = [];
   
-  // 1. First split by markdown blocks to preserve code/headers
-  const blocks = splitMarkdownBlocks(text);
+  // 1. Split by double newlines to get paragraphs
+  // This preserves semantic integrity better than splitting by blocks
+  const paragraphs = text.split(/\n\s*\n/);
   
   let currentChunk = "";
   
-  for (const block of blocks) {
-    // If adding this block exceeds chunk size
-    if ((currentChunk.length + block.length) > chunkSize && currentChunk.length > 0) {
+  for (const para of paragraphs) {
+    const trimmedPara = para.trim();
+    if (!trimmedPara) continue;
+
+    // If adding this paragraph exceeds chunk size
+    if ((currentChunk.length + trimmedPara.length) > chunkSize && currentChunk.length > 0) {
         chunks.push(currentChunk.trim());
         
         // Start new chunk with overlap from end of previous
-        // (Simple character overlap)
+        // Ideally we overlap whole sentences, but for now simple char overlap is okay
+        // or we just start fresh if the previous chunk was a complete thought
         const overlapText = currentChunk.slice(-overlap);
-        currentChunk = overlapText + "\n\n" + block;
+        currentChunk = overlapText + "\n\n" + trimmedPara;
     } else {
-        currentChunk += (currentChunk ? "\n\n" : "") + block;
+        currentChunk += (currentChunk ? "\n\n" : "") + trimmedPara;
     }
     
-    // Handle edge case: Single block is massive (larger than 1.5x chunk size)
-    // Force split it
+    // Handle massive paragraphs (rare in good markdown but possible)
     while (currentChunk.length > chunkSize * 1.5) {
-        // Find a convenient break point (newline or space) near chunkSize
+        // Find a convenient break point (newline or period)
         let splitIdx = currentChunk.lastIndexOf('\n', chunkSize);
         if (splitIdx === -1 || splitIdx < chunkSize * 0.5) {
-            splitIdx = currentChunk.lastIndexOf(' ', chunkSize);
+            splitIdx = currentChunk.lastIndexOf('. ', chunkSize);
         }
         if (splitIdx === -1) splitIdx = chunkSize; // Hard break
         
         const chunk = currentChunk.slice(0, splitIdx);
         chunks.push(chunk.trim());
         
-        // Keep overlap for next
         const overlapStart = Math.max(0, splitIdx - overlap);
         currentChunk = currentChunk.slice(overlapStart);
     }

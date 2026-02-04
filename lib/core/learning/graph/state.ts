@@ -27,9 +27,8 @@ export interface ILearningGraphState {
   sources: Source[];
   nextStep?: string;
   reasoning?: string;
-  finalResponse?: any;
+  finalResponse?: LearningResponse;
 }
-
 export const LearningGraphState = {
     // Conversation History
     messages: {
@@ -76,17 +75,17 @@ export const LearningGraphState = {
 
     // Decision Output
     nextStep: {
-      value: (x: string | undefined, y: string | undefined) => y,
-      default: () => undefined,
+        value: (x: string | undefined, y: string | undefined) => y,
+        default: () => undefined,
     },
     reasoning: {
-      value: (x: string | undefined, y: string | undefined) => y,
-      default: () => undefined,
+        value: (x: string | undefined, y: string | undefined) => y,
+        default: () => undefined,
     },
     
     // Final Output Payload
     finalResponse: {
-      value: (x: any, y: any) => y,
-      default: () => undefined,
+        value: (x: LearningResponse | undefined, y: LearningResponse | undefined) => y,
+        default: () => undefined,
     },
   };

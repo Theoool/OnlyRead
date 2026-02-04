@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query'
 import * as articlesAPI from '@/lib/core/reading/articles.service'
+import { saveArticle, updateArticleProgress, deleteArticle } from '@/app/actions/article'
 
 // Query Keys
 export const queryKeys = {
@@ -19,11 +20,13 @@ export function useArticles(options: {
   pageSize?: number;
   limit?: number;
   type?: string;
+  initialData?: any;
 } = {}) {
-  const { page, pageSize, limit, type } = options;
+  const { page, pageSize, limit, type, initialData } = options;
   return useQuery({
     queryKey: [...queryKeys.articles, page, pageSize, limit, type],
     queryFn: () => articlesAPI.getArticles({ page, pageSize, limit, type }),
+    initialData
   })
 }
 
@@ -53,12 +56,14 @@ export function useArticlesInfinite(options: {
 /**
  * 获取单篇文章
  */
-export function useArticle(id: string) {
+export function useArticle(id: string, options: { initialData?: any } = {}) {
+  const { initialData } = options;
   const a= useQuery({
     queryKey: queryKeys.article(id),
     queryFn: () => articlesAPI.getArticle(id),
     enabled: !!id,
     retry: 1,
+    initialData
   })
   return a
 }
@@ -70,8 +75,11 @@ export function useSaveArticle() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (article: Parameters<typeof articlesAPI.saveArticle>[0]) =>
-      articlesAPI.saveArticle(article),
+    mutationFn: async (article: any) => {
+      const res = await saveArticle(article);
+      if (!res.success) throw new Error('Save failed');
+      return res.article;
+    },
     onSuccess: () => {
       // 保存成功后刷新文章列表
       queryClient.invalidateQueries({ queryKey: queryKeys.articles })
@@ -86,7 +94,11 @@ export function useDeleteArticle() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (id: string) => articlesAPI.deleteArticle(id),
+    mutationFn: async (id: string) => {
+        const res = await deleteArticle(id);
+        if (!res.success) throw new Error('Delete failed');
+        return res;
+    },
     onSuccess: () => {
       // 删除成功后刷新文章列表
       queryClient.invalidateQueries({ queryKey: queryKeys.articles })
@@ -101,13 +113,17 @@ export function useUpdateArticleProgress() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, progress, lastReadSentence, lastRead, skipInvalidation }: {
+    mutationFn: async ({ id, progress, lastReadSentence, lastRead, skipInvalidation }: {
       id: string
       progress?: number
       lastReadSentence?: number
       lastRead?: number
       skipInvalidation?: boolean
-    }) => articlesAPI.updateArticle(id, { progress, lastReadSentence, lastRead }),
+    }) => {
+        const res = await updateArticleProgress(id, { progress, lastReadSentence, lastRead });
+        if (!res.success) throw new Error('Update failed');
+        return res.article;
+    },
     onSuccess: (_, variables) => {
       if (variables.skipInvalidation) return
 

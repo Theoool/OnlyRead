@@ -45,7 +45,6 @@ interface ConceptStore {
   updateConcept: (term: string, data: Partial<ConceptData>, id?: string) => Promise<void>
   getConcept: (term: string) => ConceptData | undefined
   importConcepts: (concepts: ConceptData[]) => Promise<void>
-  findRelatedConcepts: (text: string) => Promise<Array<{ id: string; term: string; similarity: number }>>
   clearError: () => void
 }
 
@@ -59,7 +58,8 @@ export const useConceptStore = create<ConceptStore>((set, get) => ({
   loadConcepts: async () => {
     set({ loading: true, error: null })
     try {
-      const concepts = await conceptsAPI.getConcepts()
+      // Increase limit to ensure we get all concepts for the reader view
+      const concepts = await conceptsAPI.getConcepts({ limit: 1000 })
 
       // Convert array to record keyed by term
       const conceptsRecord: Record<string, ConceptData> = {}
@@ -192,7 +192,7 @@ export const useConceptStore = create<ConceptStore>((set, get) => ({
   },
 
   // Find related concepts using vector search
-  findRelatedConcepts: async (text) => {
+  findRelatedConcepts: async (text: string) => {
     try {
       // 使用 GET 请求，语义更清晰
       const params = new URLSearchParams({
