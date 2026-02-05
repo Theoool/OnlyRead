@@ -1,12 +1,14 @@
-"use client";
-import {useState, useEffect, useMemo } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+ "use client";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-import { Loader2, List, Check, ChevronRight, Sparkles } from "lucide-react";
+import { Check, ChevronRight, List, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 import type { Article } from "@/lib/core/reading/articles.service";
 import type { Collection } from "@/lib/core/reading/collections.service";
+import { useLiveQuery } from "dexie-react-hooks";
+import { db } from "@/lib/db";
 
 // Components
 import { ReaderView } from "./components/ReaderView";
@@ -14,7 +16,6 @@ import { SimpleReaderHeader } from "./components/SimpleReaderHeader";
 import { ReaderFooter } from "./components/ReaderFooter";
 import { ChapterNavigator } from "@/app/components/book/ChapterNavigator";
 import { ChapterListSidebar } from "@/app/components/book/ChapterListSidebar";
-import { BookInfoBar } from "@/app/components/book/BookInfoBar";
 import { ConceptCard } from "@/app/components/ConceptCard";
 import { SelectionToolbar } from "@/app/components/SelectionToolbar";
 import { AISidebar } from "@/app/components/ai/AISidebar";
@@ -23,9 +24,10 @@ import { ConceptHud } from "@/app/components/ConceptHud";
 // Hooks
 import { useReadingLogic } from "./hooks/useReadingLogic";
 import { useConceptStore, ConceptData } from "@/lib/store/useConceptStore";
+import dynamic from "next/dynamic";
 
 // Dynamic Imports removed as we are unifying to ReaderView
-// const EpubReader = dynamic(() => import("./EpubReader").then(m => m.EpubReader), { ssr: false });
+const EpubReader = dynamic(() => import("./EpubReader").then(m => m.EpubReader), { ssr: false });
 // const PdfReader = dynamic(() => import("./PdfReader").then(m => m.PdfReader), { ssr: false });
 
 interface ReaderClientProps {
@@ -35,27 +37,50 @@ interface ReaderClientProps {
 
 export default function ReaderClient({ initialArticle, initialCollection }: ReaderClientProps) {
   const searchParams = useSearchParams();
-  
-  // State for AI Sidebar
+
+  const localId = searchParams.get("localId");
+  if (localId) {
+    return <LocalBookReader localId={localId} />;
+  }
+
+  return <RemoteArticleReader initialArticle={initialArticle} initialCollection={initialCollection} />;
+}
+
+function LocalBookReader({ localId }: { localId: string }) {
+  const localBook = useLiveQuery(() => db.books.get(localId), [localId]);
+
+  if (!localBook) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-black">
+        <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+      </div>
+    );
+  }
+
+  return <EpubReader book={localBook} />;
+}
+
+function RemoteArticleReader({
+  initialArticle,
+  initialCollection,
+}: {
+  initialArticle?: Article;
+  initialCollection?: Collection;
+}) {
+  const router = useRouter();
+
   const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
   const [aiInitialMessage, setAiInitialMessage] = useState<string | undefined>(undefined);
   const [aiSelection, setAiSelection] = useState<string | undefined>(undefined);
 
-  const handleAiToggle = () => setIsAiSidebarOpen(!isAiSidebarOpen);
-  
+  const handleAiToggle = () => setIsAiSidebarOpen((v) => !v);
+
   const handleAskAi = (text: string) => {
-      setAiSelection(text);
-      setAiInitialMessage(`解释这段内容：\n\n${text}`);
-      setIsAiSidebarOpen(true);
+    setAiSelection(text);
+    setAiInitialMessage(`解释这段内容：\n\n${text}`);
+    setIsAiSidebarOpen(true);
   };
 
-  // UNIFICATION: We no longer check for localBook format (EPUB/PDF).
-  // Everything is rendered via ReaderView using the 'article' data.
-  // If localId is present, the logic below should eventually handle fetching the article data 
-  // (Note: Currently useReadingLogic fetches remote article. We might need to ensure local articles are supported if offline)
-  // For now, we assume the upload flow syncs Article data to DB/Cache so useReadingLogic works.
-
-  // Remote Article Logic
   const {
     article,
     sentences,
@@ -87,8 +112,6 @@ export default function ReaderClient({ initialArticle, initialCollection }: Read
       .filter((s: string) => s.trim().length > 0)
       .join(' ');
   }, [sentences, currentIndex]);
-
-  const router = useRouter();
   
   // Concept Logic
   const { concepts, addConcept, loadConcepts } = useConceptStore();
@@ -96,7 +119,7 @@ export default function ReaderClient({ initialArticle, initialCollection }: Read
   // Ensure concepts are loaded on mount
   useEffect(() => { 
     loadConcepts(); 
-  }, []); 
+  }, [loadConcepts]); 
 
   const visibleCards = useMemo(() => {
     const activeArticle = article || initialArticle;

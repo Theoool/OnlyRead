@@ -1,17 +1,18 @@
-'use client';
+"use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { LocalBook } from '@/lib/db';
 import { useTheme } from 'next-themes';
-import { Loader2, List, X, ArrowLeft, Minus, Plus, Sparkles, MessageSquare } from 'lucide-react';
+import { Loader2, List, X, Sparkles, MessageSquare, Check, ChevronRight, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useConceptStore, ConceptData } from '@/lib/store/useConceptStore';
-import { ConceptHud } from '@/app/components/ConceptHud';
 import { ConceptCard } from '@/app/components/ConceptCard';
 import { twMerge } from 'tailwind-merge';
 import { EpubView } from 'react-reader';
-import { CopilotWidget } from '@/app/components/ai/CopilotWidget';
+import { SimpleReaderHeader } from "./components/SimpleReaderHeader";
+import { ReaderFooter } from "./components/ReaderFooter";
+import { AISidebar } from "@/app/components/ai/AISidebar";
 
 interface EpubReaderProps {
   book: LocalBook;
@@ -19,12 +20,12 @@ interface EpubReaderProps {
 
 export function EpubReader({ book }: EpubReaderProps) {
   const [location, setLocation] = useState<string | number>(0);
+  const [progress, setProgress] = useState(0);
   const [toc, setToc] = useState<any[]>([]);
   const renditionRef = useRef<any>(null);
   const [isTocOpen, setIsTocOpen] = useState(false);
-  const [isHudOpen, setIsHudOpen] = useState(false);
-  const [isCopilotOpen, setIsCopilotOpen] = useState(false); // NEW: Sidebar state
-  const [fontSize, setFontSize] = useState(100);
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [copilotInitialMessage, setCopilotInitialMessage] = useState<string | undefined>(undefined);
   const router = useRouter();
   const { theme } = useTheme();
 
@@ -51,7 +52,7 @@ export function EpubReader({ book }: EpubReaderProps) {
       collectionId?: string;
       selection?: string;
   }>({
-      articleIds: [], // Local books might not have IDs yet, or we use a placeholder
+      articleIds: [],
       collectionId: undefined,
       selection: undefined
   });
@@ -63,16 +64,16 @@ export function EpubReader({ book }: EpubReaderProps) {
     }
   }, [book.id]);
 
-  // 计算可见卡片
+  // Calculate visible cards
   const visibleCards = useMemo(() => {
     return Object.values(concepts);
   }, [concepts]);
 
-  // 更新主题样式
+  // Update theme styles
   const updateTheme = useCallback((rendition: any) => {
     if (!rendition) return;
     const isDark = theme === 'dark';
-    const textColor = isDark ? '#E4E4E7' : '#27272A';
+    const textColor = isDark ? '#E4E4E7' : '#27272A'; // zinc-200 : zinc-800
     const bg = isDark ? '#000000' : '#FAFAFA';
 
     rendition.themes.register('custom', {
@@ -84,7 +85,7 @@ export function EpubReader({ book }: EpubReaderProps) {
          'padding-bottom': '40px !important',
          'padding-left': '20px !important',
          'padding-right': '20px !important',
-         'max-width': '800px !important',
+         'max-width': '768px !important', // Match max-w-3xl
          'margin': '0 auto !important',
        },
        'p': {
@@ -93,9 +94,9 @@ export function EpubReader({ book }: EpubReaderProps) {
          'text-align': 'justify !important',
          'margin-bottom': '1.5em !important'
        },
-       'h1': { 'font-family': 'serif', 'margin-top': '2em' },
-       'h2': { 'font-family': 'serif', 'margin-top': '1.5em' },
-       'h3': { 'font-family': 'serif', 'margin-top': '1.2em' },
+       'h1': { 'font-family': 'serif', 'margin-top': '2em', 'font-weight': '700' },
+       'h2': { 'font-family': 'serif', 'margin-top': '1.5em', 'font-weight': '700' },
+       'h3': { 'font-family': 'serif', 'margin-top': '1.2em', 'font-weight': '700' },
        'img': { 'max-width': '100%', 'border-radius': '0.5rem' },
        '::selection': {
            'background': isDark ? 'rgba(168, 85, 247, 0.4)' : 'rgba(168, 85, 247, 0.2)'
@@ -104,7 +105,7 @@ export function EpubReader({ book }: EpubReaderProps) {
     rendition.themes.select('custom');
   }, [theme]);
 
-  // 键盘导航
+  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const rendition = renditionRef.current;
@@ -125,9 +126,8 @@ export function EpubReader({ book }: EpubReaderProps) {
         case 'Escape':
           e.preventDefault();
           setIsTocOpen(false);
-          setIsHudOpen(false);
-          setIsCopilotOpen(false);
           setActiveCard(null);
+          setToolbarState(prev => ({ ...prev, isVisible: false }));
           break;
       }
     };
@@ -136,24 +136,15 @@ export function EpubReader({ book }: EpubReaderProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // 主题更新
+  // Update theme when changed
   useEffect(() => {
       if (renditionRef.current) {
           updateTheme(renditionRef.current);
       }
   }, [theme, updateTheme]);
 
-  // 字体大小更新
-  useEffect(() => {
-      const rendition = renditionRef.current;
-      if (rendition) {
-          rendition.themes.fontSize(`${fontSize}%`);
-      }
-  }, [fontSize]);
-
-  // 处理选择激活
+  // Handle selection activation
   const handleSelectionActivate = useCallback((text: string, rect: { x: number, y: number }, cfiRange: string) => {
-    // 验证选择文本
     if (!text || text.trim().length < 1 || text.length > 100) return;
 
     const saved = concepts[text];
@@ -164,29 +155,27 @@ export function EpubReader({ book }: EpubReaderProps) {
         savedData: saved
     });
     
-    // 隐藏工具栏
     setToolbarState(prev => ({ ...prev, isVisible: false }));
   }, [concepts]);
 
-  // NEW: Handle Ask AI
+  // Handle Ask AI
   const handleAskAI = useCallback((text: string) => {
-      // 1. Set context
       setCopilotContext(prev => ({ ...prev, selection: text }));
-      // 2. Open Sidebar
+      setCopilotInitialMessage(`解释这段内容：\n\n${text}`);
       setIsCopilotOpen(true);
-      // 3. Hide Toolbar
       setToolbarState(prev => ({ ...prev, isVisible: false }));
   }, []);
 
-  // 保存卡片
+  // Save concept
   const handleSaveCard = useCallback(async (data: ConceptData) => {
       try {
           await addConcept({
-              ...data
+              ...data,
+              sourceArticleId: book.id
           });
           setActiveCard(null);
 
-          // 清除 EPUB 中的选择
+          // Clear selection in EPUB
           const rendition = renditionRef.current;
           if (rendition?.getContents) {
             const contents = rendition.getContents();
@@ -197,11 +186,11 @@ export function EpubReader({ book }: EpubReaderProps) {
             });
           }
       } catch (error) {
-          console.error('Failed to save concept:', error);
+        console.error('Failed to save concept:', error);
       }
   }, [addConcept, book.id]);
 
-  // 获取选择坐标
+  // Get selection coordinates
   const getSelectionCoordinates = useCallback((range: Range, iframe: HTMLIFrameElement) => {
     try {
       const rect = range.getBoundingClientRect();
@@ -233,335 +222,248 @@ export function EpubReader({ book }: EpubReaderProps) {
   }
 
   return (
-    <div className="h-screen w-full bg-[#FAFAFA] dark:bg-black relative overflow-hidden flex flex-col">
-       {/* Background Noise */}
-       <div className="absolute inset-0 opacity-[0.015] pointer-events-none z-0 mix-blend-multiply dark:mix-blend-overlay"
-        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}
-       />
+    <div className="h-screen w-full bg-[#FAFAFA] dark:bg-black text-zinc-900 dark:text-zinc-50 font-sans overflow-hidden flex flex-row selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black relative">
+       
+       <div className="flex-1 flex flex-col min-w-0 relative h-full">
+           {/* Noise Texture */}
+           <div className="absolute inset-0 opacity-[0.015] pointer-events-none z-0 mix-blend-multiply dark:mix-blend-overlay"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}
+           />
 
-       {/* Header */}
-       <header className="fixed top-0 left-0 right-0 h-[60px] flex items-center justify-between px-6 z-40 pointer-events-none">
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="pointer-events-auto flex items-center gap-2"
-          >
-             <button
-               onClick={() => router.push('/')}
-               className="flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-2 rounded-full border border-zinc-200/50 dark:border-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-zinc-600 dark:text-zinc-400"
-             >
-                <ArrowLeft className="w-4 h-4" />
-                <span className="text-xs font-medium max-w-[150px] truncate">{book.title}</span>
-             </button>
-          </motion.div>
-
-          <div className="flex items-center gap-2 pointer-events-auto">
-             <ConceptHud
-                cards={visibleCards}
-                isOpen={isHudOpen}
-                onOpenChange={setIsHudOpen}
+           <SimpleReaderHeader
+                title={book.title}
+                progress={progress}
+                tocAvailable={toc.length > 0}
+                onTocToggle={() => setIsTocOpen(!isTocOpen)}
+                visibleCards={visibleCards}
                 onTermClick={(term) => {
                     const saved = concepts[term];
-                    if (saved) {
-                        setActiveCard({
-                            x: window.innerWidth / 2 - 140,
-                            y: window.innerHeight / 2 - 100,
-                            term,
-                            savedData: saved
-                        });
-                    }
+                    if(saved) setActiveCard({ x: window.innerWidth/2 - 140, y: window.innerHeight/2 - 100, term, savedData: saved });
                 }}
-             />
+                onAiToggle={() => setIsCopilotOpen((v) => !v)}
+            />
 
-             {/* Copilot Toggle */}
-             <button
-                onClick={() => setIsCopilotOpen(!isCopilotOpen)}
-                className={twMerge(
-                    "flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-2 rounded-full border border-zinc-200/50 dark:border-zinc-800/50 transition-colors",
-                    isCopilotOpen ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
-                )}
-                title="AI 助手"
-             >
-                 <MessageSquare className="w-4 h-4" />
-                 <span className="text-xs font-medium hidden sm:inline">Copilot</span>
-             </button>
-
-             <div className="flex items-center gap-1 bg-white/80 dark:bg-black/80 backdrop-blur-md px-2 py-1.5 rounded-full border border-zinc-200/50 dark:border-zinc-800/50">
-                <button
-                  onClick={() => setFontSize(s => Math.max(80, s - 10))}
-                  className="p-1 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-                  title="缩小字体"
-                >
-                    <Minus className="w-3 h-3" />
-                </button>
-                <span className="text-[10px] font-mono w-8 text-center text-zinc-500">{fontSize}%</span>
-                <button
-                  onClick={() => setFontSize(s => Math.min(200, s + 10))}
-                  className="p-1 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-                  title="放大字体"
-                >
-                    <Plus className="w-3 h-3" />
-                </button>
-             </div>
-
-             <button
-               onClick={() => setIsTocOpen(!isTocOpen)}
-               className={twMerge(
-                 "flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-2 rounded-full border border-zinc-200/50 dark:border-zinc-800/50 transition-colors",
-                 isTocOpen ? "bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
-               )}
-               title="目录"
-             >
-               <List className="w-4 h-4" />
-             </button>
-          </div>
-       </header>
-
-       {/* Reader Area */}
-       <div className="flex-1 w-full h-full relative z-10 overflow-hidden flex">
-           <div className="flex-1 relative">
-                <EpubView
-                    url={book.fileData}
-                    location={location}
-                    locationChanged={(loc: string | number) => setLocation(loc)}
-                    tocChanged={(t) => setToc(t)}
-                    epubOptions={{
-                        flow: 'scrolled',
-                        manager: 'continuous',
-                        width: '100%',
-                        height: '100%',
-                    }}
-                    getRendition={(rendition) => {
-                        renditionRef.current = rendition;
-                        updateTheme(rendition);
-
-                        // 增强的选择处理
-                        rendition.on('selected', (cfiRange: string, contents: any) => {
-                            try {
-                                const selection = contents.window.getSelection();
-                                if (!selection || selection.rangeCount === 0) return;
-
-                                // 获取所有选中的 range
-                                const range = selection.getRangeAt(0);
-                                const text = range.toString().trim();
-
-                                if (!text || text.length < 1 || text.length > 300) { // Increased limit for AI context
-                                    setToolbarState(prev => ({ ...prev, isVisible: false }));
-                                    return;
-                                }
-
-                                // 获取 iframe
-                                const iframes = (rendition as any).manager?.container?.querySelectorAll('iframe');
-                                if (!iframes || iframes.length === 0) return;
-
-                                // 找到包含选择的 iframe
-                                let targetIframe: HTMLIFrameElement | null = null;
-                                for (const item of Array.from(iframes)) {
-                                const iframe = item as HTMLIFrameElement;
-                                try {
-                                    if (iframe.contentWindow === contents.window) {
-                                    targetIframe = iframe;
-                                    break;
-                                    }
-                                } catch (e) {
-                                    continue;
-                                }
-                                }
-
-                                if (!targetIframe) return;
-
-                                const coords = getSelectionCoordinates(range, targetIframe);
-                                if (!coords) return;
-
-                                // 确保坐标在视口内
-                                if (coords.x < 0 || coords.y < 0) return;
-
-                                // 显示工具栏而不是直接激活
-                                // 计算位置：在选择上方居中
-                                const toolbarWidth = 140; // Increased width
-                                const left = Math.max(16, coords.x + coords.width / 2 - toolbarWidth / 2);
-                                const top = Math.max(16, coords.y - 60);
-
-                                setToolbarState({
-                                    isVisible: true,
-                                    position: { top, left },
-                                    text,
-                                    cfiRange
-                                });
-
-                            } catch (error) {
-                                console.error('Error handling selection:', error);
+           {/* Reader Area */}
+           <div className="flex-1 w-full h-full relative z-10 overflow-hidden flex pt-[60px]">
+               <div className="flex-1 relative">
+                    <EpubView
+                        url={book.fileData}
+                        location={location}
+                        locationChanged={(loc: string | number) => {
+                            setLocation(loc);
+                            // Update progress
+                            if (renditionRef.current?.location?.start?.percentage) {
+                                setProgress(renditionRef.current.location.start.percentage * 100);
                             }
-                        });
+                        }}
+                        tocChanged={(t) => setToc(t)}
+                        epubOptions={{
+                            flow: 'scrolled',
+                            manager: 'continuous',
+                            width: '100%',
+                            height: '100%',
+                        }}
+                        getRendition={(rendition) => {
+                            renditionRef.current = rendition;
+                            updateTheme(rendition);
+                            
+                            // Initialize progress
+                            rendition.on('relocated', (location: any) => {
+                                if (location?.start?.percentage) {
+                                    setProgress(location.start.percentage * 100);
+                                }
+                            });
 
-                        // 点击时关闭面板
-                        rendition.on('click', () => {
-                            setIsHudOpen(false);
-                            setIsTocOpen(false);
-                            // setIsCopilotOpen(false); // Don't close copilot on click
-                            setToolbarState(prev => ({ ...prev, isVisible: false }));
-                        });
+                            // Enhanced selection handling
+                            rendition.on('selected', (cfiRange: string, contents: any) => {
+                                try {
+                                    const selection = contents.window.getSelection();
+                                    if (!selection || selection.rangeCount === 0) return;
 
-                        // 位置变化时关闭卡片
-                        rendition.on('locationChanged', () => {
-                            setActiveCard(null);
-                            setToolbarState(prev => ({ ...prev, isVisible: false }));
-                        });
-                    }}
-                />
+                                    const range = selection.getRangeAt(0);
+                                    const text = range.toString().trim();
+
+                                    if (!text || text.length < 1 || text.length > 300) {
+                                        setToolbarState(prev => ({ ...prev, isVisible: false }));
+                                        return;
+                                    }
+
+                                    const iframes = (rendition as any).manager?.container?.querySelectorAll('iframe');
+                                    if (!iframes || iframes.length === 0) return;
+
+                                    let targetIframe: HTMLIFrameElement | null = null;
+                                    for (const item of Array.from(iframes)) {
+                                        const iframe = item as HTMLIFrameElement;
+                                        try {
+                                            if (iframe.contentWindow === contents.window) {
+                                                targetIframe = iframe;
+                                                break;
+                                            }
+                                        } catch (e) {
+                                            continue;
+                                        }
+                                    }
+
+                                    if (!targetIframe) return;
+
+                                    const coords = getSelectionCoordinates(range, targetIframe);
+                                    if (!coords) return;
+
+                                    if (coords.x < 0 || coords.y < 0) return;
+
+                                    const toolbarWidth = 160;
+                                    const left = Math.max(16, coords.x + coords.width / 2 - toolbarWidth / 2);
+                                    const top = Math.max(16, coords.y - 60);
+
+                                    setToolbarState({
+                                        isVisible: true,
+                                        position: { top, left },
+                                        text,
+                                        cfiRange
+                                    });
+
+                                } catch (error) {
+                                    console.error('Error handling selection:', error);
+                                }
+                            });
+
+                            rendition.on('click', () => {
+                                setIsTocOpen(false);
+                                setToolbarState(prev => ({ ...prev, isVisible: false }));
+                            });
+
+                            rendition.on('locationChanged', () => {
+                                setActiveCard(null);
+                                setToolbarState(prev => ({ ...prev, isVisible: false }));
+                            });
+                        }}
+                    />
+               </div>
            </div>
 
-           {/* Copilot Sidebar */}
+           <ReaderFooter />
+
+           {/* TOC Sidebar */}
            <AnimatePresence>
-                {isCopilotOpen && (
-                    <motion.div 
-                        initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: 400, opacity: 1 }}
-                        exit={{ width: 0, opacity: 0 }}
-                        className="h-full border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl z-30"
-                    >
-                        <div className="flex flex-col h-full">
-                            <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
-                                <h3 className="font-semibold text-sm">AI Copilot</h3>
-                                <button onClick={() => setIsCopilotOpen(false)} className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded">
-                                    <X className="w-4 h-4" />
-                                </button>
-                            </div>
-                            <div className="flex-1 overflow-hidden">
-                                <CopilotWidget 
-                                    mode="copilot"
-                                    variant="sidebar"
-                                    context={copilotContext}
-                                    initialMessages={copilotContext.selection ? [{
-                                        id: 'context-preview',
-                                        role: 'user',
-                                        content: `Selected Context: "${copilotContext.selection.substring(0, 50)}..."`,
-                                        createdAt: new Date().toISOString()
-                                    }] : []}
-                                />
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
+             {isTocOpen && (
+               <motion.aside
+                 initial={{ opacity: 0, x: 16 }}
+                 animate={{ opacity: 1, x: 0 }}
+                 exit={{ opacity: 0, x: 16 }}
+                 className="fixed top-[76px] right-6 md:right-12 z-50 w-[280px] max-h-[70vh] pointer-events-auto"
+               >
+                 <div className="bg-white/90 dark:bg-black/90 backdrop-blur-md rounded-2xl shadow-lg border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden">
+                   <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200/50 dark:border-zinc-800/50">
+                     <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
+                       目录
+                     </span>
+                     <button
+                       onClick={() => setIsTocOpen(false)}
+                       className="text-[10px] font-mono text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
+                       type="button"
+                     >
+                       关闭
+                     </button>
+                   </div>
+                   <div className="max-h-[calc(70vh-44px)] overflow-y-auto no-scrollbar p-2">
+                     {toc.length === 0 ? (
+                       <div className="flex items-center justify-center py-8 text-zinc-400 text-xs">
+                         暂无目录
+                       </div>
+                     ) : (
+                       toc.map((chapter, i) => (
+                         <button
+                           key={i}
+                           onClick={() => {
+                               setLocation(chapter.href);
+                               setIsTocOpen(false);
+                           }}
+                           className={twMerge(
+                             "w-full text-left rounded-lg px-2 py-2 transition-colors text-xs text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-900/30 truncate"
+                           )}
+                         >
+                           {chapter.label}
+                         </button>
+                       ))
+                     )}
+                   </div>
+                 </div>
+               </motion.aside>
+             )}
+           </AnimatePresence>
+
+           {/* Concept Card Modal */}
+           <AnimatePresence>
+              {activeCard && (
+                  <ConceptCard
+                      selection={activeCard.term}
+                      position={{ top: activeCard.y, left: activeCard.x }}
+                      savedData={activeCard.savedData}
+                      onSave={handleSaveCard}
+                      onClose={() => setActiveCard(null)}
+                  />
+              )}
+           </AnimatePresence>
+
+           {/* Selection Toolbar (Custom implementation to work with iframe) */}
+           <AnimatePresence>
+             {toolbarState.isVisible && !activeCard && (
+               <motion.div
+                 initial={{ opacity: 0, y: 10, scale: 0.8 }}
+                 animate={{ opacity: 1, y: 0, scale: 1 }}
+                 exit={{ opacity: 0, y: 10, scale: 0.8 }}
+                 transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                 style={{ top: toolbarState.position.top, left: toolbarState.position.left }}
+                 className="fixed z-50"
+               >
+                 <div className="flex items-center gap-1 bg-white dark:bg-black rounded-lg p-1 shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-zinc-200 dark:border-zinc-800 backdrop-blur-sm">
+                   <button
+                     onClick={(e) => {
+                       e.stopPropagation();
+                       handleSelectionActivate(
+                         toolbarState.text, 
+                         { x: toolbarState.position.left, y: toolbarState.position.top + 50 }, 
+                         toolbarState.cfiRange
+                       );
+                     }}
+                     className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-zinc-700 dark:text-zinc-300"
+                   >
+                     <BookOpen className="w-4 h-4 text-purple-500" />
+                     <span className="text-sm font-medium">Concept</span>
+                   </button>
+
+                   <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-800 mx-1" />
+
+                   <button
+                     onClick={(e) => {
+                        e.stopPropagation();
+                        handleAskAI(toolbarState.text);
+                     }}
+                     className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-zinc-700 dark:text-zinc-300"
+                   >
+                     <MessageSquare className="w-4 h-4 text-indigo-500" />
+                     <span className="text-sm font-medium">Ask AI</span>
+                   </button>
+                 </div>
+               </motion.div>
+             )}
            </AnimatePresence>
        </div>
 
-       {/* Footer */}
-       <motion.footer
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 2, duration: 1 }}
-        className="fixed bottom-8 left-0 right-0 flex justify-center z-40 pointer-events-none"
-      >
-        <div className="flex items-center gap-6 text-[10px] font-mono text-zinc-400 uppercase tracking-widest bg-white/50 dark:bg-black/50 backdrop-blur px-6 py-2 rounded-full border border-zinc-100 dark:border-zinc-900/50">
-          <span className="flex items-center gap-1.5">
-            <span className="w-1 h-1 rounded-full bg-zinc-400" />
-            Epub 阅读器 · 选中文本查看概念或询问 AI
-          </span>
-        </div>
-      </motion.footer>
-
-       {/* TOC Sidebar */}
-       <AnimatePresence>
-         {isTocOpen && (
-           <motion.div
-             initial={{ x: '100%' }}
-             animate={{ x: 0 }}
-             exit={{ x: '100%' }}
-             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-             className="fixed top-0 right-0 h-full w-80 bg-white/95 dark:bg-black/95 backdrop-blur shadow-2xl border-l border-zinc-200 dark:border-zinc-800 z-50 flex flex-col"
-           >
-             <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800 h-[60px]">
-               <h2 className="font-medium text-sm text-zinc-900 dark:text-zinc-100">目录</h2>
-               <button
-                 onClick={() => setIsTocOpen(false)}
-                 className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded text-zinc-500 transition-colors"
-               >
-                 <X className="w-4 h-4" />
-               </button>
-             </div>
-             <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
-               {toc.length === 0 ? (
-                 <div className="flex items-center justify-center h-full text-zinc-400 text-sm">
-                   暂无目录
-                 </div>
-               ) : (
-                 toc.map((chapter, i) => (
-                   <button
-                     key={i}
-                     onClick={() => {
-                         setLocation(chapter.href);
-                         setIsTocOpen(false);
-                     }}
-                     className="w-full text-left py-2.5 px-3 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-lg transition-colors truncate"
-                   >
-                     {chapter.label}
-                   </button>
-                 ))
-               )}
-             </div>
-           </motion.div>
-         )}
-       </AnimatePresence>
-
-       {/* Concept Card Modal */}
-       <AnimatePresence>
-          {activeCard && (
-              <ConceptCard
-                  selection={activeCard.term}
-                  position={{ top: activeCard.y, left: activeCard.x }}
-                  savedData={activeCard.savedData}
-                  onSave={handleSaveCard}
-                  onClose={() => setActiveCard(null)}
-              />
-          )}
-       </AnimatePresence>
-
-       {/* Selection Toolbar */}
-       <AnimatePresence>
-         {toolbarState.isVisible && !activeCard && (
-           <motion.div
-             initial={{ opacity: 0, y: 10, scale: 0.8 }}
-             animate={{ opacity: 1, y: 0, scale: 1 }}
-             exit={{ opacity: 0, y: 10, scale: 0.8 }}
-             transition={{ type: "spring", stiffness: 400, damping: 25 }}
-             style={{ top: toolbarState.position.top, left: toolbarState.position.left }}
-             className="fixed z-50"
-           >
-             <div className="flex items-center gap-2 bg-white dark:bg-zinc-900 p-1 rounded-full shadow-lg border border-zinc-200 dark:border-zinc-800">
-               {/* Concept Button */}
-               <button
-                 onClick={(e) => {
-                   e.stopPropagation();
-                   handleSelectionActivate(
-                     toolbarState.text, 
-                     { x: toolbarState.position.left, y: toolbarState.position.top + 50 }, 
-                     toolbarState.cfiRange
-                   );
-                 }}
-                 className="group flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 px-3 py-1.5 rounded-full transition-colors"
-               >
-                 <Sparkles className="w-3.5 h-3.5 text-purple-500" />
-                 <span className="text-xs font-medium">概念</span>
-               </button>
-
-               <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-0.5" />
-
-               {/* Ask AI Button */}
-               <button
-                 onClick={(e) => {
-                    e.stopPropagation();
-                    handleAskAI(toolbarState.text);
-                 }}
-                 className="group flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-full transition-colors"
-               >
-                 <MessageSquare className="w-3.5 h-3.5" />
-                 <span className="text-xs font-medium">Ask AI</span>
-               </button>
-             </div>
-           </motion.div>
-         )}
-       </AnimatePresence>
+       <AISidebar 
+          isOpen={isCopilotOpen} 
+          onClose={() => {
+            setIsCopilotOpen(false)
+            setCopilotInitialMessage(undefined)
+          }}
+          context={{ 
+              articleIds: copilotContext.articleIds,
+              collectionId: copilotContext.collectionId,
+              selection: copilotContext.selection
+          }}
+          initialMessage={copilotInitialMessage}
+          layoutMode="flat"
+       />
     </div>
   );
 }
