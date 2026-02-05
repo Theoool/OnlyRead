@@ -15,7 +15,7 @@ export class SessionService {
     });
   }
 
-  static async getSession(sessionId: string, userId: strinyouhg) {
+  static async getSession(sessionId: string, userId: string) {
     return prisma.learningSession.findFirst({
       where: { id: sessionId, userId },
       include: {
