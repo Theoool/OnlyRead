@@ -1,3 +1,4 @@
+
 import { CookieOptions, createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
@@ -23,7 +24,6 @@ export async function createClient() {
             // The `setAll` method was called from a Server Component.
             // This can be ignored if you have middleware refreshing
             // user sessions.
-            console.error('Error setting cookies in server component:', error)
           }
         },
       },
@@ -51,7 +51,6 @@ export async function createClientWithResponse(response: NextResponse) {
               response.cookies.set(name, value, options)
             })
           } catch (error) {
-            console.error('Error setting cookies:', error)
           }
         },
       },

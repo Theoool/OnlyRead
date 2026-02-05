@@ -143,10 +143,10 @@ export function useArticleNavigation(articleId: string | undefined) {
     queryKey: ['article', articleId, 'navigation'],
     queryFn: async () => {
       if (!articleId) return null;
-      const res = await fetch(`/api/collections/${articleId}/navigation`);
+      const res = await fetch(`/api/articles/${articleId}/navigation?includeCollection=true`);
       if (!res.ok) return null;
       const data = await res.json();
-      return data.data.navigation;
+      return data;
     },
     enabled: !!articleId,
     staleTime: 1000 * 60 * 5, // 5 minutes

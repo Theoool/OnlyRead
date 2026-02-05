@@ -48,8 +48,10 @@ export function ChapterListSidebar({
       isCompleted: article.progress >= 99,
     }));
 
+  
   return (
-    <>
+    <>  
+   
       {isOpen && (
         <div className="fixed top-[140px] right-6 md:right-12 z-50 w-[280px] max-h-[70vh] pointer-events-auto">
           <div className="bg-white/90 dark:bg-black/90 backdrop-blur-md rounded-2xl shadow-lg border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden">

@@ -76,7 +76,7 @@ export default function ClientHome({ initialArticles, initialCollections }: Clie
   const { concepts, loadConcepts } = useConceptStore();
   const router = useRouter();
   
-  // View Mode: 'articles' | 'collections'
+
   const [viewMode, setViewMode] = useState<'articles' | 'collections'>('articles');
   const [expandedCollectionId, setExpandedCollectionId] = useState<string | null>(null);
   const [expandedCollections, setExpandedCollections] = useState<Map<string, any[]>>(new Map());
@@ -718,16 +718,28 @@ export default function ClientHome({ initialArticles, initialCollections }: Clie
                       const articleConcepts = conceptsByArticle.get(article.id) || [];
                       
                       return (
-                      <motion.button
+                      <motion.div
                         layout
                         key={article.id}
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: 20 }}
                         transition={{ delay: i * 0.05 }}
+                        role="button"
+                        tabIndex={loading ? -1 : 0}
+                        aria-disabled={loading}
                         onClick={() => onClickItem(article)}
-                        disabled={loading}
-                        className="w-full group text-left p-4 rounded-lg bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all disabled:opacity-50 relative overflow-hidden"
+                        onKeyDown={(e) => {
+                          if (loading) return
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            onClickItem(article)
+                          }
+                        }}
+                        className={twMerge(
+                          "w-full group text-left p-4 rounded-lg bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all relative overflow-hidden",
+                          loading ? "opacity-50 pointer-events-none" : ""
+                        )}
                       >
                         <div className="flex justify-between items-start gap-4 relative z-10">
                           <div className="flex-1 min-w-0">
@@ -789,7 +801,7 @@ export default function ClientHome({ initialArticles, initialCollections }: Clie
                             />
                           </div>
                         )}
-                      </motion.button>
+                      </motion.div>
                     )})}
                     
                     {recentFive.length === 0 && (

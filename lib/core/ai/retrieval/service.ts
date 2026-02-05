@@ -13,12 +13,37 @@ type RetrievalRow = {
 }
 
 export class RetrievalService {
-  private static uuidArray(ids: string[]): Prisma.Sql {
-    return Prisma.sql`ARRAY[${Prisma.join(ids)}]::uuid[]`
+  private static isUuid(value: unknown): value is string {
+    if (typeof value !== 'string') return false
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value.trim(),
+    )
+  }
+
+  private static sanitizeFilter(filter: RetrievalOptions['filter']): RetrievalOptions['filter'] {
+    if (!filter) return undefined
+    const articleIds = Array.isArray(filter.articleIds)
+      ? filter.articleIds
+          .map((v) => (typeof v === 'string' ? v.trim() : ''))
+          .filter((v) => v.length > 0 && this.isUuid(v))
+      : undefined
+
+    const collectionId = this.isUuid(filter.collectionId) ? filter.collectionId : undefined
+    const domain = typeof filter.domain === 'string' ? filter.domain : undefined
+
+    return {
+      ...(articleIds && articleIds.length > 0 ? { articleIds: Array.from(new Set(articleIds)) } : {}),
+      ...(collectionId ? { collectionId } : {}),
+      ...(domain ? { domain } : {}),
+    }
   }
  
   static async search(options: RetrievalOptions): Promise<RetrievalResult> {
-    const { query, userId, filter, mode = 'fast', topK = 5 } = options;
+    const { query, userId, mode = 'fast', topK = 5 } = options;
+    if (!this.isUuid(userId)) {
+      throw new Error('Invalid userId (expected UUID string)')
+    }
+    const filter = this.sanitizeFilter(options.filter)
 
     console.log(`[RetrievalService] Search started - mode: ${mode}, userId: ${userId}, query: "${query.substring(0, 50)}..."`);
     console.log(`[RetrievalService] Filter:`, JSON.stringify(filter));
@@ -93,18 +118,20 @@ export class RetrievalService {
   const queryVector = await generateEmbedding(query);
 
   if (filter?.articleIds?.length) {
-    const results = await prisma.$queryRaw<RetrievalRow[]>`
-      SELECT c.id, c.content, a.id as "articleId", a.title, a.domain,
-             1 - (c.embedding <=> ${queryVector}::vector) as similarity
-      FROM article_chunks c
-      JOIN articles a ON c.article_id = a.id
-      WHERE c.user_id = ${userId}::uuid
-        AND a.deleted_at IS NULL
-        AND c.article_id = ANY(${this.uuidArray(filter.articleIds)})
-      ORDER BY c.embedding <=> ${queryVector}::vector
-      LIMIT ${topK};
-    `;
 
+    console.log(`[RetrievalService] Searching chunks for articleIds啦啦啦: ${filter.articleIds}`);  
+    
+  const results = await prisma.$queryRaw<RetrievalRow[]>`
+  SELECT c.id, c.content, a.id as "articleId", a.title, a.domain,
+         1 - (c.embedding <=> ${queryVector}::vector) as similarity
+  FROM article_chunks c
+  JOIN articles a ON c.article_id = a.id
+  WHERE c.user_id = ${userId}::uuid
+    AND a.deleted_at IS NULL
+    AND c.article_id = ANY(${filter.articleIds}::uuid[])  -- 改这里
+  ORDER BY c.embedding <=> ${queryVector}::vector
+  LIMIT ${topK};
+`;
     return this.formatResults(results);
   }
 
@@ -171,7 +198,7 @@ export class RetrievalService {
           JOIN article_bodies b ON a.id = b.article_id
           WHERE a.user_id = ${userId}::uuid
             AND a.deleted_at IS NULL
-            AND a.id = ANY(${this.uuidArray(filter.articleIds)})
+            AND a.id = ANY(ARRAY[${Prisma.join(filter.articleIds)}]::uuid[])
             AND to_tsvector('simple', b.content) @@ plainto_tsquery('simple', ${trimmedQuery})
           ORDER BY rank DESC
           LIMIT ${topK};

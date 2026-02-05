@@ -28,6 +28,13 @@ const ChatRequestSchema = z.object({
 
 export const runtime = 'nodejs'
 
+function isUuid(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value.trim(),
+  )
+}
+
 function toBaseMessages(input: any[] | undefined): BaseMessage[] {
   if (!input || input.length === 0) return []
   return input
@@ -52,6 +59,16 @@ export async function POST(req: Request) {
   }
 
   const { messages, message: legacyMessage, sessionId, mode, context, currentTopic, masteryLevel } = parsed
+  const sanitizedArticleIds = Array.isArray(context?.articleIds)
+    ? Array.from(
+        new Set(
+          context.articleIds
+            .map((v: any) => (typeof v === 'string' ? v.trim() : ''))
+            .filter((v: string) => v.length > 0 && isUuid(v)),
+        ),
+      )
+    : []
+  const sanitizedCollectionId = isUuid(context?.collectionId) ? context?.collectionId : undefined
 
   const lastMessage =
     messages && messages.length > 0 ? (messages[messages.length - 1]?.content as any) : legacyMessage
@@ -100,8 +117,8 @@ export async function POST(req: Request) {
               selection: context?.selection,
               currentContent: context?.currentContent,
             },
-            articleIds: context?.articleIds || [],
-            collectionId: context?.collectionId,
+            articleIds: sanitizedArticleIds,
+            collectionId: sanitizedArticleIds.length > 0 ? undefined : sanitizedCollectionId,
             currentTopic: currentTopic || 'General',
             masteryLevel: masteryLevel ?? 0,
           } as any)

@@ -1,10 +1,8 @@
 "use client";
-import { Suspense, useState, useEffect, useMemo } from "react";
+import {useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "@/lib/db";
+
 import { Loader2, List, Check, ChevronRight, Sparkles } from "lucide-react";
-import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 import type { Article } from "@/lib/core/reading/articles.service";
@@ -159,14 +157,7 @@ export default function ReaderClient({ initialArticle, initialCollection }: Read
 
           {effectiveCollection ? (
             <>
-              <BookInfoBar
-                collection={effectiveCollection as any}
-                article={{ id: activeArticle.id, title: activeArticle.title, progress }}
-                currentChapter={activeArticle.order || 1}
-                totalChapters={effectiveCollection.totalChapters || 1}
-                bookProgress={effectiveCollection.readingProgress || 0}
-                onAiToggle={handleAiToggle}
-              />
+            
               {/* Floating TOC Toggle for Book Mode */}
               <div className="fixed top-3 right-6 z-50 flex items-center gap-3">
                 <motion.button
@@ -235,6 +226,7 @@ export default function ReaderClient({ initialArticle, initialCollection }: Read
                 <ChapterListSidebar
                   collection={effectiveCollection as any}
                   currentArticleId={activeArticle.id}
+                  
                   isOpen={isTocOpen}
                   onClose={() => setIsTocOpen(false)}
                 />

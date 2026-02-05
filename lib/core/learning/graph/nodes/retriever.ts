@@ -2,6 +2,17 @@ import { prisma } from '@/lib/infrastructure/database/prisma';
 import { generateEmbedding } from '@/lib/infrastructure/ai/embedding';
 import { Prisma } from '@/lib/generated/prisma';
 
+function isUuid(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value.trim(),
+  )
+}
+
+function uuidArray(ids: string[]): Prisma.Sql {
+  return Prisma.sql`ARRAY[${Prisma.join(ids)}]::uuid[]`
+}
+
 export const retrieverNode = async (state: any) => {
   console.log("========== 开始检索 ==========");
   console.log(`[Retriever] UserId: ${state.userId}`);
@@ -11,8 +22,17 @@ export const retrieverNode = async (state: any) => {
   
   const query = state.userMessage;
   const userId = state.userId;
-  const articleIds = state.articleIds as string[] | undefined; // Array of UUIDs
-  const collectionId = state.collectionId as string | undefined;
+  const rawArticleIds: unknown[] = Array.isArray(state.articleIds) ? state.articleIds : [];
+  const sanitizedArticleIds: string[] = Array.from(
+    new Set(
+      rawArticleIds
+        .map((v) => (typeof v === 'string' ? v.trim() : ''))
+        .filter((v: string) => v.length > 0 && isUuid(v)),
+    ),
+  );
+  const sanitizedCollectionId = isUuid(state.collectionId) ? state.collectionId : undefined;
+  const articleIds = sanitizedArticleIds.length > 0 ? sanitizedArticleIds : undefined
+  const collectionId = articleIds ? undefined : sanitizedCollectionId
   console.log("检索条件",state);
   
   if (!userId) {
@@ -101,7 +121,7 @@ export const retrieverNode = async (state: any) => {
   if (articleIds && articleIds.length > 0) {
     // Create a UUID array for Postgres
     console.log(`[Retriever] Filtering by articleIds: ${articleIds.length} articles`);
-    filterClause = Prisma.sql`AND c.article_id = ANY(${articleIds}::uuid[])`;
+    filterClause = Prisma.sql`AND c.article_id = ANY(ARRAY[${Prisma.join(articleIds)}]::uuid[])`;
   } else if (collectionId) {
     console.log(`[Retriever] Filtering by collectionId: ${collectionId}`);
     // Use JOIN to filter by collectionId from articles table
@@ -114,7 +134,6 @@ export const retrieverNode = async (state: any) => {
   } else {
     console.warn(`[Retriever] No articleIds or collectionId provided. Will search all user documents.`);
   }
-console.log();
 
   try {
     const retrieved = await prisma.$queryRaw<
@@ -133,7 +152,7 @@ console.log();
         a.id as "articleId",
         a.title,
         a.domain,
-        1 - (c.embedding <=> ${JSON.stringify(queryVector)}::vector(1536)) as ksimilarity
+        1 - (c.embedding <=> ${JSON.stringify(queryVector)}::vector(1536)) as similarity
         FROM article_chunks c
         JOIN articles a ON c.article_id = a.id
         WHERE c.user_id = ${userId}::uuid
@@ -183,6 +202,6 @@ console.log();
 
   } catch (error) {
       console.error("Retriever SQL Error:", error);
-      return { documents: "" };
+      return { documents: "", sources: [] };
   }
 };

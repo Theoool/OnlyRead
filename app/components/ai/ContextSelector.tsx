@@ -220,11 +220,7 @@ export function ContextSelector({
         )}
       </div>
       
-      {/* Footer Info */}
-      <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 text-xs text-zinc-500">
-          {selectedContext.collectionId ? '1 Collection' : '0 Collections'} selected<br/>
-          {selectedContext.articleIds.length} Articles selected
-      </div>
+     
     </div>
   );
 }

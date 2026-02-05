@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
     const llm = new ChatOpenAI({
       modelName: process.env.AI_MODEL_NAME,
-      temperature: 0.2,
+      temperature: 0.7,
       apiKey: process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY,
       configuration: {
         baseURL: process.env.OPENAI_BASE_URL,

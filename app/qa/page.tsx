@@ -29,11 +29,11 @@ export default async function QAPage() {
     createdAt: item.createdAt.toISOString(),
   }));
 
-  const serializedCollections = collections.map(c => ({
-    id: c.id,
-    title: c.title,
-    type: c.type,
-    createdAt: c.createdAt.toISOString(),
+  const serializedCollections = collections.map(a => ({
+    id: a.id,
+    title: a.title,
+    type: a.type,
+    createdAt: a.createdAt.toISOString(),
   }));
 
   return (

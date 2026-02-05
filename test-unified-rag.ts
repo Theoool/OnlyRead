@@ -12,11 +12,11 @@ async function main() {
   console.log(`Running test for user: ${user.id}`);
 
   const inputs: any = {
-    userMessage: "RAG 的原理是什么？",
+    userMessage: "简述一下这篇文章讲了什么",
     userId: user.id,
     mode: 'qa',
     messages: [],
-    articleIds: [], 
+    articleIds: ['c8201242-c152-4bc0-8806-e7fbd0096e9e'], 
   };
 
   console.log("Invoking Unified Graph (QA Mode)...");

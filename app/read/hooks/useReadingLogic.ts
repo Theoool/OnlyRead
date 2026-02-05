@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useArticle, useUpdateArticleProgress } from "@/lib/hooks";
+import { useArticle, useUpdateArticleProgress, useArticleNavigation } from "@/lib/hooks";
 import { splitMarkdownBlocks, splitSentences } from "@/lib/text-processing";
 import { getCollection, Collection } from "@/lib/core/reading/collections.service";
 import type { Article } from "@/lib/core/reading/articles.service";
 
 export function useReadingLogic(initialArticle?: Article) {
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
@@ -55,45 +56,18 @@ export function useReadingLogic(initialArticle?: Article) {
   }, [article]);
 
   // Navigation Logic
+  const { data: nav } = useArticleNavigation(article?.id);
+  
   useEffect(() => {
-    async function fetchNavigation() {
-      if (article?.collectionId) {
-        try {
-          const res = await fetch(`/api/collections/${article.id}/navigation`);
-          if (res.ok) {
-            const data = await res.json();
-            const nav = data.data.navigation;
-            
-            if (nav.collection) {
-              setCollection(nav.collection);
-              setTocMode('chapters');
-            }
-            
-            if (nav.prev) setPrevArticleId(nav.prev.id);
-            if (nav.next) setNextArticleId(nav.next.id);
-          } else {
-            const col = await getCollection(article.collectionId!);
-            if (col) {
-               setCollection(col);
-               setTocMode('chapters');
-               
-               if (col.articles) {
-                  const sorted = col.articles.sort((a, b) => (a.order || 0) - (b.order || 0));
-                  const idx = sorted.findIndex(a => a.id === article?.id);
-                  if (idx >= 0) {
-                    if (idx > 0) setPrevArticleId(sorted[idx - 1].id);
-                    if (idx < sorted.length - 1) setNextArticleId(sorted[idx + 1].id);
-                  }
-               }
-            }
-          }
-        } catch (e) {
-          console.error("Failed to fetch collection nav", e);
-        }
+    if (nav) {
+      if (nav.collection) {
+        setCollection(nav.collection);
+        setTocMode('chapters');
       }
+      if (nav.prev) setPrevArticleId(nav.prev.id);
+      if (nav.next) setNextArticleId(nav.next.id);
     }
-    fetchNavigation();
-  }, [article?.collectionId, article?.id]);
+  }, [nav]);
 
   // Progress Saving
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);

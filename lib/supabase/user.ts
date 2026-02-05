@@ -47,11 +47,18 @@ export async function getOrCreateUser() {
 
   return user
 }
+
+function isUuid(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value.trim(),
+  )
+}
 export async function requireUserFromHeader(req: Request) {
   const userId = req.headers.get('x-user-id')
   const userEmail = req.headers.get('x-user-email')
 
-  if (!userId) {
+  if (!userId || !isUuid(userId)) {
     throw new UnauthorizedError('未认证')
   }
 

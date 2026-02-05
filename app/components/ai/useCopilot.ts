@@ -47,6 +47,13 @@ export function useCopilot({ sessionId, mode, context }: ChatHookOptions) {
   const lastUiUpdateAtRef = useRef<number>(0);
   const sessionRef = useRef<any>(null);
 
+  const isUuid = useCallback((value: unknown): value is string => {
+    if (typeof value !== 'string') return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value.trim(),
+    );
+  }, []);
+
   // Fetch Session History (Only if sessionId is provided)
   const { data: session, isLoading } = useQuery({
     queryKey: ['ai', 'session', sessionId],
@@ -112,6 +119,18 @@ export function useCopilot({ sessionId, mode, context }: ChatHookOptions) {
         const sessionContext = sessionRef.current?.context || {}
         const mergedContext = { ...sessionContext, ...(context || {}) }
         const wireMessages = toWireMessages(history || sessionRef.current?.messages || [])
+        const safeArticleIds = Array.isArray(mergedContext.articleIds)
+          ? Array.from(
+              new Set(
+                mergedContext.articleIds
+                  .map((v: any) => (typeof v === 'string' ? v.trim() : ''))
+                  .filter((v: string) => v.length > 0 && isUuid(v)),
+              ),
+            )
+          : undefined;
+        const safeCollectionId = isUuid(mergedContext.collectionId) ? mergedContext.collectionId : undefined;
+        const finalArticleIds = safeArticleIds && safeArticleIds.length > 0 ? safeArticleIds : undefined;
+        const finalCollectionId = finalArticleIds ? undefined : safeCollectionId;
         const payload: any = {
             sessionId,
             message,
@@ -120,8 +139,8 @@ export function useCopilot({ sessionId, mode, context }: ChatHookOptions) {
             currentTopic: mergedContext.currentTopic,
             masteryLevel: mergedContext.masteryLevel,
             context: {
-              articleIds: mergedContext.articleIds,
-              collectionId: mergedContext.collectionId,
+              articleIds: finalArticleIds,
+              collectionId: finalCollectionId,
               selection: mergedContext.selection,
               currentContent: mergedContext.currentContent,
             },
@@ -269,6 +288,19 @@ export function useCopilot({ sessionId, mode, context }: ChatHookOptions) {
               ...prev,
               errors: [...prev.errors, { message, detail, at: Date.now() }],
             }))
+            const text = detail ? `${message}\n${detail}` : message
+            stopTypewriter()
+            pendingTextRef.current = ''
+            renderedTextRef.current = renderedTextRef.current.trim().length > 0 ? renderedTextRef.current : text
+            setCurrentResponse((prev) => {
+              if (!prev) return prev
+              if (prev.content && prev.content.trim().length > 0) return prev
+              return {
+                ...prev,
+                content: text,
+                ui: { type: 'explanation', content: text },
+              }
+            })
             return
           }
         }
