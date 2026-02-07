@@ -41,7 +41,8 @@ export function useFileImport({ userId, onSuccess }: UseFileImportOptions) {
         try {
           const supabase = createClient();
           const sanitizedFileName = file.name.replace(/[^\x00-\x7F]/g, "").replace(/\s+/g, "_");
-          const filePath = `${userId}/${Date.now()}_${sanitizedFileName}`;
+          const safeFileName = sanitizedFileName || 'upload';
+          const filePath = `${userId}/${Date.now()}_${safeFileName}`;
 
           // A. Upload to Supabase
           const { error: uploadError } = await supabase.storage
@@ -64,8 +65,17 @@ export function useFileImport({ userId, onSuccess }: UseFileImportOptions) {
           });
 
           if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.error || 'Process failed');
+            let message = `导入失败 (${res.status})`;
+            try {
+              const errorData = await res.clone().json();
+              message = errorData.error || errorData.message || message;
+            } catch {
+              try {
+                const text = await res.text();
+                if (text) message = text.slice(0, 300);
+              } catch {}
+            }
+            throw new Error(message);
           }
 
           const data = await res.json();

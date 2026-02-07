@@ -1,26 +1,25 @@
-import { NextResponse } from 'next/server';
-import { importFile } from '@/app/actions/import';
+import { apiHandler, createSuccessResponse } from '@/lib/infrastructure/error/response'
+import { BadRequestError } from '@/lib/infrastructure/error'
+import { requireUserFromHeader } from '@/lib/supabase/user'
+import { importFileForUser } from '@/lib/import/import-file'
 
-export const POST = async (req: Request) => {
+export const POST = apiHandler(async (req: Request) => {
+  const user = await requireUserFromHeader(req)
+
+  let json: any
   try {
-    const json = await req.json();
-    const { filePath, originalName, fileType } = json;
-
-    if (!filePath || !originalName) {
-      return NextResponse.json(
-        { error: 'Missing required fields: filePath, originalName' },
-        { status: 400 }
-      );
-    }
-
-    const result = await importFile(filePath, originalName, fileType);
-
-    return NextResponse.json(result);
-  } catch (error: any) {
-    console.error('Import file error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to import file' },
-      { status: 500 }
-    );
+    json = await req.json()
+  } catch {
+    throw new BadRequestError('Invalid JSON body')
   }
-};
+
+  const { filePath, originalName, fileType } = json || {}
+
+  if (!filePath || !originalName) {
+    throw new BadRequestError('Missing required fields: filePath, originalName')
+  }
+
+  const result = await importFileForUser({ userId: user.id, filePath, originalName, fileType })
+
+  return createSuccessResponse(result)
+})
