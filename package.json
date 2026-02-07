@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "prisma generate && next build",
+      "build": "prisma generate && node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "postinstall": "prisma generate",
     "db:index": "npx tsx scripts/update-db-indexes.ts",
     "dev:warm": "concurrently \"next dev --turbopack\" \"npx tsx scripts/dev-warmup.ts\""

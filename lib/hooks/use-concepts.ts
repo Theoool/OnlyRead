@@ -32,20 +32,6 @@ export function useConcepts() {
 }
 
 /**
- * 获取待复习的概念卡片
- */
-export function useDueConcepts() {
-  return useQuery({
-    queryKey: ['concepts', 'due'],
-    queryFn: async () => {
-      return conceptsAPI.getConcepts({ due: true, limit: 10 })
-    },
-    staleTime: 0,
-    refetchOnWindowFocus: false,
-  })
-}
-
-/**
  * 获取AI定义（带缓存）
  */
 export function useAiDefinition(term: string | undefined) {
@@ -93,22 +79,6 @@ export function useFilteredConcepts(params: {
     queryKey: ['concepts', 'filter', params],
     queryFn: () => conceptsAPI.filterConcepts(params),
     placeholderData: (previousData) => previousData,
-  })
-}
-
-/**
- * 提交复习结果
- */
-export function useSubmitReview() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: (vars: { id: string; quality: number }) =>
-      conceptsAPI.submitReview(vars.id, vars.quality),
-    onSuccess: () => {
-      // Don't invalidate 'due' query to keep the current session stable
-      queryClient.invalidateQueries({ queryKey: queryKeys.concepts })
-    },
   })
 }
 

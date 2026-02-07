@@ -27,6 +27,31 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   },
 
+  async redirects() {
+    return [
+      {
+        source: '/stats/search',
+        destination: '/search',
+        permanent: true,
+      },
+      {
+        source: '/stats',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/review',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/options',
+        destination: '/',
+        permanent: true,
+      },
+    ];
+  },
+
   // Headers for security
   async headers() {
     return [

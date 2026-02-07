@@ -58,6 +58,13 @@ export function SearchBar({ placeholder = "搜索... (Cmd+K)", className = "" }:
     setSelectedIndex(0)
   }, [results])
 
+  // 关闭搜索并重置
+  const closeSearch = useCallback(() => {
+    setIsOpen(false)
+    setQuery("")
+    setSelectedIndex(0)
+  }, [])
+
   // 处理结果点击
   const handleResultClick = useCallback((type: 'concept' | 'article', id: string, sourceArticleId?: string) => {
     if (type === 'concept' && sourceArticleId) {
@@ -66,14 +73,7 @@ export function SearchBar({ placeholder = "搜索... (Cmd+K)", className = "" }:
       router.push(`/read?id=${id}`)
     }
     closeSearch()
-  }, [router])
-
-  // 关闭搜索并重置
-  const closeSearch = useCallback(() => {
-    setIsOpen(false)
-    setQuery("")
-    setSelectedIndex(0)
-  }, [])
+  }, [router, closeSearch])
 
   // 打开搜索并聚焦
   const openSearch = useCallback(() => {

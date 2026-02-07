@@ -1,6 +1,5 @@
-import { useState } from "react";
 import { twMerge } from "tailwind-merge";
-import { History, Library, TrendingUp, Activity, Sparkles, Command } from "lucide-react";
+import { History, Library, Sparkles, Command } from "lucide-react";
 import { Article } from "@/lib/core/reading/articles.service";
 import { ArticleList } from "./ArticleList";
 import { CollectionList } from "./CollectionList";
@@ -61,18 +60,6 @@ export function HomeContent({
         </div>
         
         <div className="flex items-center gap-4">
-            {/* Stats Link */}
-            <a href="/stats" className="flex items-center gap-1 text-[10px] font-mono text-blue-500 hover:text-blue-600 transition-colors group">
-                <TrendingUp className="w-3 h-3" />
-                统计
-            </a>
-
-            {/* Review Entry */}
-            <a href="/review" className="flex items-center gap-1 text-[10px] font-mono text-purple-500 hover:text-purple-600 transition-colors group">
-                <Activity className="w-3 h-3 group-hover:animate-pulse" />
-                复习
-            </a>
-
             {/* QA Entry */}
             <a href="/qa" className="flex items-center gap-1 text-[10px] font-mono text-indigo-500 hover:text-indigo-600 transition-colors group">
                 <Sparkles className="w-3 h-3 group-hover:animate-pulse" />
