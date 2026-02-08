@@ -6,7 +6,7 @@ const bundleAnalyzer = withBundleAnalyzer({
 });
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['jsdom', '@napi-rs/canvas', 'pdfjs-dist'],
+  serverExternalPackages: ['jsdom', '@napi-rs/canvas', 'pdfjs-dist', 'canvas'],
   // Enable standalone output for Docker
   output: 'standalone',
 

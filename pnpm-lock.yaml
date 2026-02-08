@@ -7,6 +7,7 @@ settings:
 overrides:
   '@types/react': 19.2.10
   '@types/react-dom': 19.2.3
+  pdfjs-dist: 3.11.174
 
 importers:
 
@@ -1257,7 +1258,7 @@ packages:
   '@react-pdf-viewer/core@3.12.0':
     resolution: {integrity: sha512-8MsdlQJ4jaw3GT+zpCHS33nwnvzpY0ED6DEahZg9WngG++A5RMhk8LSlxdHelwaFFHFiXBjmOaj2Kpxh50VQRg==}
     peerDependencies:
-      pdfjs-dist: ^2.16.105 || ^3.0.279
+      pdfjs-dist: 3.11.174
       react: '>=16.8.0'
       react-dom: '>=16.8.0'
 
@@ -3647,10 +3648,6 @@ packages:
   pdfjs-dist@3.11.174:
     resolution: {integrity: sha512-TdTZPf1trZ8/UFu5Cx/GXB7GZM30LT+wWUNfsi6Bq8ePLnb+woNKtDymI2mxZYBpMbonNFqKmiz684DIfnd8dA==}
     engines: {node: '>=18'}
-
-  pdfjs-dist@5.4.296:
-    resolution: {integrity: sha512-DlOzet0HO7OEnmUmB6wWGJrrdvbyJKftI1bhMitK7O2N8W2gc757yyYBbINy9IDafXAV9wmKr9t7xsTaNKRG5Q==}
-    engines: {node: '>=20.16.0 || >=22.3.0'}
 
   perfect-debounce@1.0.0:
     resolution: {integrity: sha512-xCy9V055GLEqoFaHoC1SoLIaLmWctgCUaBaWxDZ7/Zx4CTyX7cJQLJOok/orfjZAh9kEYpjJa4d0KcJmCbctZA==}
@@ -8160,7 +8157,10 @@ snapshots:
   pdf-parse@2.4.5:
     dependencies:
       '@napi-rs/canvas': 0.1.80
-      pdfjs-dist: 5.4.296
+      pdfjs-dist: 3.11.174
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
 
   pdfjs-dist@3.11.174:
     optionalDependencies:
@@ -8169,10 +8169,6 @@ snapshots:
     transitivePeerDependencies:
       - encoding
       - supports-color
-
-  pdfjs-dist@5.4.296:
-    optionalDependencies:
-      '@napi-rs/canvas': 0.1.90
 
   perfect-debounce@1.0.0: {}
 
