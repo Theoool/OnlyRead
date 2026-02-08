@@ -134,8 +134,8 @@ export async function importFileForUser(params: {
 
         insertedCount += batch.length
 
-        ;(async () => {
-          let job
+        try {
+          let job;
           try {
             job = await prisma.job.create({
               data: {
@@ -145,24 +145,30 @@ export async function importFileForUser(params: {
                 payload: { articleIds: createdArticles.map((a) => a.id) },
                 progress: 0,
               },
-            })
-          } catch {}
+            });
+          } catch (jobErr) {
+            console.error('Failed to create indexing job', jobErr);
+          }
 
-          let completed = 0
+          let completed = 0;
+          // Process sequentially to be safe, or Promise.all if we trust the API limit
           for (const article of createdArticles) {
             try {
-              await IndexingService.processArticle(article.id, userId)
-              completed++
+              await IndexingService.processArticle(article.id, userId);
+              completed++;
 
-              if (job && completed % 5 === 0) {
+              if (job && createdArticles.length > 0 && completed % 2 === 0) {
+                // Update less frequently
                 await prisma.job
                   .update({
                     where: { id: job.id },
                     data: { progress: Math.floor((completed / createdArticles.length) * 100) },
                   })
-                  .catch(() => {})
+                  .catch(() => { });
               }
-            } catch {}
+            } catch (idxErr) {
+              console.error(`Failed to index article ${article.id}`, idxErr);
+            }
           }
 
           if (job) {
@@ -175,9 +181,11 @@ export async function importFileForUser(params: {
                   result: { processed: completed, total: createdArticles.length },
                 },
               })
-              .catch(() => {})
+              .catch(() => { });
           }
-        })().catch(() => {})
+        } catch (e) {
+          console.error('Batch indexing failed', e);
+        }
       } catch (e: any) {
         errors.push({
           batch: i / BATCH_SIZE,

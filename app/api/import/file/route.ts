@@ -20,6 +20,6 @@ export const POST = apiHandler(async (req: Request) => {
   }
 
   const result = await importFileForUser({ userId: user.id, filePath, originalName, fileType })
-  console.log("导入结果", result)
+
   return createSuccessResponse(result)
 })

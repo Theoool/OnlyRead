@@ -18,16 +18,16 @@ export async function saveArticle(data: any) {
 
   // Invalidate user's article cache
   devCache.invalidatePattern(`articles:${user.id}:*`);
-  
+
   // Revalidate Next.js cache
   revalidatePath('/');
   revalidatePath('/read');
 
-  
-  (async () => {
-    console.log(`[Background] Starting indexing for manually created article ${article.id}...`);
 
-    // 1. Create Job Record
+  // Trigger Indexing
+  try {
+    console.log(`[Indexing] Starting indexing for manually created article ${article.id}...`);
+
     let job;
     try {
       job = await prisma.job.create({
@@ -40,14 +40,12 @@ export async function saveArticle(data: any) {
         }
       });
     } catch (e) {
-      console.error('[Background] Failed to create job record', e);
+      console.error('[Indexing] Failed to create job record', e);
     }
 
-    // 2. Process Article
     try {
       await IndexingService.processArticle(article.id, user.id);
 
-      // 3. Complete Job
       if (job) {
         await prisma.job.update({
           where: { id: job.id },
@@ -58,9 +56,9 @@ export async function saveArticle(data: any) {
           }
         });
       }
-      console.log(`[Background] Indexing finished for manual article ${article.id}`);
+      console.log(`[Indexing] Indexing finished for manual article ${article.id}`);
     } catch (e) {
-      console.error(`[Background] Indexing failed for ${article.id}`, e);
+      console.error(`[Indexing] Indexing failed for ${article.id}`, e);
       if (job) {
         await prisma.job.update({
           where: { id: job.id },
@@ -71,31 +69,33 @@ export async function saveArticle(data: any) {
         }).catch(() => { });
       }
     }
-  })().catch((e: any) => console.error('[Background] Async execution failed', e));
+  } catch (e) {
+    console.error('[Indexing] Unexpected error', e);
+  }
 
   return { success: true, article };
 }
 export async function updateArticleProgress(id: string, progressData: any) {
   const user = await requireUser();
-  
+
   // Merge id into the request body
   const data = { ...progressData, id };
 
   const article = await ArticlesRepository.update(user.id, data);
-  
+
   // Invalidate caches
   revalidatePath('/');
   revalidatePath(`/read`);
-  
+
   return { success: true, article };
 }
 
 export async function deleteArticle(id: string) {
-    const user = await requireUser();
-    await ArticlesRepository.softDelete(id, user.id);
-    
-    devCache.invalidatePattern(`articles:${user.id}:*`);
-    revalidatePath('/');
-    
-    return { success: true };
+  const user = await requireUser();
+  await ArticlesRepository.softDelete(id, user.id);
+
+  devCache.invalidatePattern(`articles:${user.id}:*`);
+  revalidatePath('/');
+
+  return { success: true };
 }

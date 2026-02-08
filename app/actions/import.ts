@@ -59,8 +59,9 @@ export async function importUrl(url: string, collectionId?: string) {
   revalidatePath('/');
 
   // Trigger Indexing
-  (async () => {
-    console.log(`[Background] Starting indexing for URL article ${article.id}...`);
+  // Trigger Indexing
+  try {
+    console.log(`[Indexing] Starting indexing for URL article ${article.id}...`);
 
     let job;
     try {
@@ -74,7 +75,7 @@ export async function importUrl(url: string, collectionId?: string) {
         }
       });
     } catch (e) {
-      console.error('[Background] Failed to create job record', e);
+      console.error('[Indexing] Failed to create job record', e);
     }
 
     try {
@@ -90,20 +91,22 @@ export async function importUrl(url: string, collectionId?: string) {
           }
         });
       }
-      console.log(`[Background] Indexing finished for URL article ${article.id}`);
-    } catch (e) {
-      console.error(`[Background] Indexing failed for ${article.id}`, e);
+      console.log(`[Indexing] Indexing finished for URL article ${article.id}`);
+    } catch (idxError) {
+      console.error(`[Indexing] Process failed for ${article.id}`, idxError);
       if (job) {
         await prisma.job.update({
           where: { id: job.id },
           data: {
             status: 'FAILED',
-            result: { error: String(e) }
+            result: { error: String(idxError) }
           }
         }).catch(() => { });
       }
     }
-  })().catch(e => console.error('[Background] Async execution failed', e));
+  } catch (e) {
+    console.error(`[Indexing] catastrophic failure for ${article.id}`, e);
+  }
 
   const { body: articleBody, ...rest } = article;
   return {
