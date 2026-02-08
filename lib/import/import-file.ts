@@ -59,7 +59,7 @@ export async function importFileForUser(params: {
     throw new Error('Unsupported file format')
   }
 
-  const safeTitle = (parsedBook.title || originalName || 'Untitled').replace(/\0/g, '')
+  const safeTitle = (parsedBook.title || originalName || 'UNK📕').replace(/\0/g, '')
   const safeDesc = (parsedBook.description || '').replace(/\0/g, '')
 
   const collection = await prisma.collection.create({

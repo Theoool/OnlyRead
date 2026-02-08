@@ -74,7 +74,7 @@ export class ArticlesRepository {
       hasPrevious: page > 1,
     };
   }
-  
+
 
   static async findById(id: string, userId: string, options?: { withContent?: boolean }) {
     const { withContent = false } = options || {};
@@ -106,14 +106,14 @@ export class ArticlesRepository {
 
   static async create(userId: string, data: CreateArticleInput) {
     let embedding: number[] | undefined;
-    
+
     // Generate embedding from content
     try {
       const title = data.title || 'Untitled';
       const domain = data.domain || '';
       const contentSnippet = data.content.slice(0, 200);
       const textToEmbed = `Title: ${title}\nDomain: ${domain}\nContent: ${contentSnippet}`;
-      
+
       embedding = await generateEmbedding(textToEmbed);
     } catch (error) {
       console.warn('Failed to generate embedding:', error);
@@ -136,7 +136,7 @@ export class ArticlesRepository {
           create: {
             content: data.content,
             markdown: data.type === 'markdown' ? data.content : undefined,
-            
+
           }
         }
       },
@@ -165,7 +165,7 @@ export class ArticlesRepository {
 
     // Prepare update data
     const { content, ...metaData } = updateData;
-    
+
     const updatePayload: any = {
       ...metaData,
       updatedAt: new Date(),
@@ -195,14 +195,14 @@ export class ArticlesRepository {
     // Re-generate embedding if title or content changed
     const newContent = content || existing.content || '';
     const oldContent = existing.content || '';
-    
-    if ((updateData.title && updateData.title !== existing.title) || 
-        (content && newContent.slice(0, 200) !== oldContent.slice(0, 200))) {
+
+    if ((updateData.title && updateData.title !== existing.title) ||
+      (content && newContent.slice(0, 200) !== oldContent.slice(0, 200))) {
       try {
         const title = updateData.title || existing.title || 'Untitled';
         const domain = existing.domain || '';
         const contentSnippet = newContent.slice(0, 200);
-        
+
         const textToEmbed = `Title: ${title}\nDomain: ${domain}\nContent: ${contentSnippet}`;
         const embedding = await generateEmbedding(textToEmbed);
         await this.updateEmbedding(id, embedding);
@@ -213,9 +213,9 @@ export class ArticlesRepository {
 
     // Update Search Vector if content/title changed (Async)
     if (updateData.title || content) {
-        const t = updateData.title || existing.title || '';
-        const c = content || existing.content || '';
-        this.updateSearchVector(id, t, c).catch(console.error);
+      const t = updateData.title || existing.title || '';
+      const c = content || existing.content || '';
+      this.updateSearchVector(id, t, c).catch(console.error);
     }
 
     return {
@@ -258,8 +258,17 @@ export class ArticlesRepository {
     const embedding = await generateEmbedding(text);
     const vectorStr = `[${embedding.join(',')}]`;
 
+    let results: Array<{
+      id: string;
+      title: string;
+      domain: string;
+      url: string;
+      similarity: number;
+    }> = [];
+
+    // 1. First, try to find related articles directly from the 'articles' table
     // Note: id is now uuid in schema
-    const results = await prisma.$queryRaw`
+    const articleResults = await prisma.$queryRaw<any[]>`
       SELECT 
         id, 
         title, 
@@ -275,12 +284,47 @@ export class ArticlesRepository {
       LIMIT ${limit};
     `;
 
-    return results as Array<{
+    results = articleResults as Array<{
       id: string;
       title: string;
       domain: string;
       url: string;
       similarity: number;
     }>;
+
+    // 2. If we haven't reached the limit, try to find related articles from 'article_chunks'
+    if (results.length < limit) {
+      const remaining = limit - results.length;
+      const existingIds = results.map(r => r.id);
+
+      const chunkResults = await prisma.$queryRaw<any[]>`
+        SELECT DISTINCT ON (a.id)
+          a.id, 
+          a.title, 
+          a.domain, 
+          a.url,
+          1 - (ac.embedding <=> ${vectorStr}::vector(1536)) as similarity
+        FROM article_chunks ac
+        JOIN articles a ON ac.article_id = a.id
+        WHERE ac.user_id = ${userId}::uuid
+          AND a.deleted_at IS NULL
+          AND a.id != ALL(${existingIds}::uuid[])
+          AND 1 - (ac.embedding <=> ${vectorStr}::vector(1536)) > ${threshold}
+        ORDER BY a.id, similarity DESC
+        LIMIT ${remaining};
+      ` as Array<{
+        id: string;
+        title: string;
+        domain: string;
+        url: string;
+        similarity: number;
+      }>;
+
+      // Merge results and re-sort by overall similarity
+      results = [...results, ...chunkResults].sort((a, b) => b.similarity - a.similarity);
+    }
+
+    return results;
   }
 }
+

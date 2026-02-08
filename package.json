@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-      "build": "prisma generate && node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && next build",
+    "build": "prisma generate && node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && next build",
     "start": "next start",
     "lint": "eslint .",
     "postinstall": "prisma generate",
@@ -16,6 +16,7 @@
     "@langchain/langgraph": "^1.1.2",
     "@langchain/openai": "^1.2.3",
     "@mozilla/readability": "^0.6.0",
+    "@napi-rs/canvas": "^0.1.90",
     "@next/bundle-analyzer": "^16.1.6",
     "@paralleldrive/cuid2": "^3.0.6",
     "@prisma/client": "^6.19.2",

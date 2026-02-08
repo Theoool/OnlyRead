@@ -25,11 +25,14 @@ export async function importUrl(url: string, collectionId?: string) {
   const validCollectionId = collectionId && uuidRegex.test(collectionId) ? collectionId : null;
 
   const extractor = new ContentExtractor();
-  
+
   // Use Jina by default
   const extracted = await extractor.extractFromUrl(url, { useJina: true });
 
   const domain = new URL(url).hostname;
+
+  const totalReadingTime = extracted.metadata?.readingTime || Math.ceil(extracted.content.length / 400);
+  const totalBlocks = extracted.content.split(/\n\s*\n/).filter(Boolean).length;
 
   const article = await prisma.article.create({
     data: {
@@ -39,6 +42,8 @@ export async function importUrl(url: string, collectionId?: string) {
       userId: user.id,
       collectionId: validCollectionId,
       type: 'markdown',
+      totalBlocks: totalBlocks,
+      totalReadingTime: totalReadingTime,
       body: {
         create: {
           content: extracted.content,
@@ -47,7 +52,7 @@ export async function importUrl(url: string, collectionId?: string) {
       }
     },
     include: {
-      body: true 
+      body: true
     }
   });
 
@@ -56,7 +61,7 @@ export async function importUrl(url: string, collectionId?: string) {
   // Trigger Indexing
   (async () => {
     console.log(`[Background] Starting indexing for URL article ${article.id}...`);
-    
+
     let job;
     try {
       job = await prisma.job.create({
@@ -74,12 +79,12 @@ export async function importUrl(url: string, collectionId?: string) {
 
     try {
       await IndexingService.processArticle(article.id, user.id);
-      
+
       if (job) {
         await prisma.job.update({
           where: { id: job.id },
-          data: { 
-            status: 'COMPLETED', 
+          data: {
+            status: 'COMPLETED',
             progress: 100,
             result: { processed: 1, total: 1 }
           }
@@ -91,17 +96,17 @@ export async function importUrl(url: string, collectionId?: string) {
       if (job) {
         await prisma.job.update({
           where: { id: job.id },
-          data: { 
-            status: 'FAILED', 
+          data: {
+            status: 'FAILED',
             result: { error: String(e) }
           }
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
   })().catch(e => console.error('[Background] Async execution failed', e));
 
   const { body: articleBody, ...rest } = article;
-  return { 
+  return {
     success: true,
     data: {
       ...rest,
