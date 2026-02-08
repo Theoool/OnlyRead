@@ -6,10 +6,10 @@ const bundleAnalyzer = withBundleAnalyzer({
 });
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['jsdom'],
+  serverExternalPackages: ['jsdom', '@napi-rs/canvas', 'pdfjs-dist'],
   // Enable standalone output for Docker
   output: 'standalone',
-  
+
   // Experimental config for large uploads
   experimental: {
     serverActions: {
