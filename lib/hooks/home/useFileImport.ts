@@ -1,18 +1,20 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
 import { importUrl } from '@/app/actions/import';
 import { saveArticle } from '@/app/actions/article';
 import { truncate } from '@/lib/utils';
 import { Article } from '@/lib/core/reading/articles.service';
+import { db, type LocalBook } from '@/lib/db';
+import { syncLocalBookToCloud } from '@/lib/import/background-sync';
 
 interface UseFileImportOptions {
   userId?: string;
   onSuccess?: (mode: 'articles' | 'collections') => void;
+  onLocalReady?: (localId: string) => void; // 本地就绪回调，用于立即跳转
 }
 
-export function useFileImport({ userId, onSuccess }: UseFileImportOptions) {
+export function useFileImport({ userId, onSuccess, onLocalReady }: UseFileImportOptions) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const queryClient = useQueryClient();
@@ -27,7 +29,7 @@ export function useFileImport({ userId, onSuccess }: UseFileImportOptions) {
     setError("");
 
     try {
-      // 1. Check file type
+      // 1. 检查文件类型
       const isEpub = file.name.toLowerCase().endsWith('.epub');
       const isPdf = file.name.toLowerCase().endsWith('.pdf');
       const isMd = file.name.toLowerCase().endsWith('.md');
@@ -37,80 +39,72 @@ export function useFileImport({ userId, onSuccess }: UseFileImportOptions) {
         throw new Error("不支持的文件格式。请上传 .epub, .pdf, .md, 或 .txt");
       }
 
-      const performBackgroundUpload = async () => {
-        try {
-          const supabase = createClient();
-          const sanitizedFileName = file.name.replace(/[^\x00-\x7F]/g, "").replace(/\s+/g, "_");
-          const safeFileName = sanitizedFileName || 'upload';
-          const filePath = `${userId}/${Date.now()}_${safeFileName}`;
-
-          // A. Upload to Supabase
-          const { error: uploadError } = await supabase.storage
-            .from('files')
-            .upload(filePath, file);
-
-          if (uploadError) {
-            throw new Error(`上传失败: ${uploadError.message}`);
-          }
-
-          // B. Trigger Backend Import
-          const res = await fetch('/api/import/file', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              filePath,
-              originalName: file.name,
-              fileType: file.type
-            }),
-          });
-
-          if (!res.ok) {
-            let message = `导入失败 (${res.status})`;
-            try {
-              const errorData = await res.clone().json();
-              message = errorData.error || errorData.message || message;
-            } catch {
-              try {
-                const text = await res.text();
-                if (text) message = text.slice(0, 300);
-              } catch {}
-            }
-            throw new Error(message);
-          }
-
-          const data = await res.json();
-
-          // C. Refresh remote data
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ['articles'] }),
-            queryClient.invalidateQueries({ queryKey: ['collections'] })
-          ]);
-
-          // D. Feedback
-          if (data.data.collection) {
-            onSuccess?.('collections');
-            toast.success("书籍导入成功", { description: "已准备好阅读和 AI 分析" });
-          } else {
-            onSuccess?.('articles');
-            toast.success("文章导入成功");
-          }
-
-        } catch (bgError: any) {
-          console.error("[Background] Upload failed", bgError);
-          toast.error("导入失败", { description: bgError.message });
-        } finally {
-            setLoading(false);
-        }
+      // 2. 【本地优先】立即保存到 IndexedDB
+      const localId = crypto.randomUUID();
+      const fileData = await file.arrayBuffer();
+      
+      const localBook: LocalBook = {
+        id: localId,
+        title: file.name.replace(/\.[^/.]+$/, ''),
+        fileData: fileData,
+        format: isEpub ? 'epub' : isPdf ? 'pdf' : isMd ? 'md' : 'txt',
+        addedAt: Date.now(),
+        syncStatus: 'local',
       };
 
-      await performBackgroundUpload();
+      await db.books.add(localBook);
+      
+      // 3. 立即通知调用方可以跳转阅读（瞬间响应）
+      onLocalReady?.(localId);
+      toast.success("文件已就绪", { description: "正在打开阅读器..." });
+
+      // 4. 【后台同步】静默上传到云端
+      performBackgroundUpload(file, localId, userId);
 
     } catch (err: any) {
       console.error('File handling error:', err);
       setError(err.message || "文件处理失败");
       setLoading(false);
     }
-  }, [userId, queryClient, onSuccess]);
+  }, [userId, onLocalReady]);
+
+  // 后台同步逻辑 - 使用 background-sync 服务
+  const performBackgroundUpload = async (
+    file: File, 
+    localId: string, 
+    userId: string
+  ) => {
+    const result = await syncLocalBookToCloud(
+      file,
+      localId,
+      userId,
+      (progress) => {
+        // 可选：这里可以添加实时进度回调
+        console.log(`[Sync ${localId}] ${progress.status}: ${progress.progress}%`);
+      }
+    );
+
+    if (result.success) {
+      // 刷新远程数据
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['articles'] }),
+        queryClient.invalidateQueries({ queryKey: ['collections'] })
+      ]);
+
+      // 静默通知用户同步完成
+      if (result.cloudCollectionId) {
+        onSuccess?.('collections');
+        toast.success("已同步到云端", { description: "AI 功能已就绪" });
+      } else {
+        onSuccess?.('articles');
+        toast.success("已同步到云端");
+      }
+    } else {
+      toast.error("云端同步失败", { description: result.error });
+    }
+
+    setLoading(false);
+  };
 
   const handleUrlImport = useCallback(async (url: string) => {
     setLoading(true);
@@ -142,7 +136,7 @@ export function useFileImport({ userId, onSuccess }: UseFileImportOptions) {
         lastRead: Date.now(),
         type: isMd ? 'markdown' : 'text',
       };
-      
+
       const res = await saveArticle(article);
       if (!res.success) throw new Error('Save failed');
 
@@ -150,8 +144,8 @@ export function useFileImport({ userId, onSuccess }: UseFileImportOptions) {
       onSuccess?.('articles');
       toast.success("文本保存成功");
     } catch (err: any) {
-        console.error(err);
-        setError("保存失败，请重试");
+      console.error(err);
+      setError("保存失败，请重试");
     } finally {
       setLoading(false);
     }

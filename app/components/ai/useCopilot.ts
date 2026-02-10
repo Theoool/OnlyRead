@@ -1,6 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+
+export interface SuggestedAction {
+  label: string;
+  action: string;
+  type?: 'primary' | 'secondary' | 'danger';
+}
 
 export interface Message {
   id: string;
@@ -8,6 +14,7 @@ export interface Message {
   content: string;
   ui?: any;
   sources?: any[];
+  suggestedActions?: SuggestedAction[];
   createdAt: string;
 }
 
@@ -70,24 +77,48 @@ export function useCopilot({ sessionId, mode, context }: ChatHookOptions) {
     sessionRef.current = session
   }, [session])
 
-  const toWireMessages = (history?: Array<{ role: string; content?: string; ui?: any }>) => {
-    if (!history || history.length === 0) return undefined
-    return history
+  // Sliding window configuration
+  const MAX_HISTORY_ROUNDS = 10; // Keep last 10 rounds (20 messages)
+  const SUMMARY_THRESHOLD = 10;  // Generate summary when exceeding this threshold
+
+  const toWireMessages = (
+    history?: Array<{ role: string; content?: string; ui?: any }>,
+    sessionSummary?: string
+  ) => {
+    if (!history || history.length === 0) return undefined;
+
+    // Apply sliding window if history exceeds threshold
+    let processedHistory = history;
+    if (history.length > MAX_HISTORY_ROUNDS * 2) {
+      processedHistory = history.slice(-MAX_HISTORY_ROUNDS * 2);
+    }
+
+    const messages = processedHistory
       .map((m: any) => {
-        const role = m?.role === 'assistant' ? 'assistant' : 'user'
+        const role = m?.role === 'assistant' ? 'assistant' : 'user';
         const content =
           typeof m?.content === 'string'
             ? m.content
             : m?.ui?.type === 'explanation'
               ? String(m?.ui?.content ?? '')
-              : String(m?.content ?? '')
-        return { role, content }
+              : String(m?.content ?? '');
+        return { role, content };
       })
-      .filter((m: any) => typeof m.content === 'string' && m.content.trim().length > 0)
-  }
+      .filter((m: any) => typeof m.content === 'string' && m.content.trim().length > 0);
+
+    // Prepend summary as system context if available and history was truncated
+    if (sessionSummary && history.length > MAX_HISTORY_ROUNDS * 2) {
+      return [
+        { role: 'system', content: `Previous conversation summary: ${sessionSummary}` },
+        ...messages
+      ];
+    }
+
+    return messages;
+  };
 
   // Stream Message
-  const sendMessage = useCallback(async ({ message, history }: { message: string; history?: any[] }) => {
+  const sendMessage = useCallback(async ({ message, history, uiIntent }: { message: string; history?: any[]; uiIntent?: string }) => {
     const stopTypewriter = () => {
       if (typewriterRafRef.current != null) {
         window.cancelAnimationFrame(typewriterRafRef.current)
@@ -118,7 +149,11 @@ export function useCopilot({ sessionId, mode, context }: ChatHookOptions) {
 
         const sessionContext = sessionRef.current?.context || {}
         const mergedContext = { ...sessionContext, ...(context || {}) }
-        const wireMessages = toWireMessages(history || sessionRef.current?.messages || [])
+        const sessionSummary = sessionRef.current?.summary
+        const wireMessages = toWireMessages(
+          history || sessionRef.current?.messages || [],
+          sessionSummary
+        )
         const safeArticleIds = Array.isArray(mergedContext.articleIds)
           ? Array.from(
               new Set(
@@ -136,6 +171,7 @@ export function useCopilot({ sessionId, mode, context }: ChatHookOptions) {
             message,
             messages: wireMessages ? [...wireMessages, { role: 'user', content: message }] : undefined,
             mode,
+            uiIntent,
             currentTopic: mergedContext.currentTopic,
             masteryLevel: mergedContext.masteryLevel,
             context: {
@@ -248,6 +284,7 @@ export function useCopilot({ sessionId, mode, context }: ChatHookOptions) {
             finalResponse = data
             const ui = data?.ui
             const nextSources = Array.isArray(data?.sources) ? data.sources : sources
+            const nextSuggestedActions = Array.isArray(data?.suggestedActions) ? data.suggestedActions : undefined
             sources = nextSources
 
             stopTypewriter()
@@ -263,6 +300,7 @@ export function useCopilot({ sessionId, mode, context }: ChatHookOptions) {
                       content: text,
                       ui: ui,
                       sources: nextSources,
+                      suggestedActions: nextSuggestedActions,
                     }
                   : null,
               )
@@ -274,6 +312,7 @@ export function useCopilot({ sessionId, mode, context }: ChatHookOptions) {
                       content: '',
                       ui: ui,
                       sources: nextSources,
+                      suggestedActions: nextSuggestedActions,
                     }
                   : null,
               )
@@ -360,11 +399,12 @@ export function useCopilot({ sessionId, mode, context }: ChatHookOptions) {
           const ui = finalResponse.ui
           const content =
             ui?.type === 'explanation' ? String(ui.content ?? '') : renderedTextRef.current || ''
-          return { content, sources, ui }
+          const suggestedActions = Array.isArray(finalResponse.suggestedActions) ? finalResponse.suggestedActions : undefined
+          return { content, sources, ui, suggestedActions }
         }
 
         const content = renderedTextRef.current
-        return { content, sources, ui: { type: 'explanation', content } }
+        return { content, sources, ui: { type: 'explanation', content }, suggestedActions: undefined }
 
     } catch (error) {
         console.error(error);
@@ -393,8 +433,13 @@ export function useCopilot({ sessionId, mode, context }: ChatHookOptions) {
     }
   }, [])
 
+  // Use useMemo to stabilize the messages array reference
+  const messages = useMemo(() => {
+    return session?.messages || [];
+  }, [session?.messages]);
+
   return {
-    messages: session?.messages || [],
+    messages,
     isLoading: isLoading,
     sendMessage,
     isSending: isStreaming,

@@ -202,7 +202,6 @@ export class ArticlesRepository {
         const title = updateData.title || existing.title || 'Untitled';
         const domain = existing.domain || '';
         const contentSnippet = newContent.slice(0, 200);
-
         const textToEmbed = `Title: ${title}\nDomain: ${domain}\nContent: ${contentSnippet}`;
         const embedding = await generateEmbedding(textToEmbed);
         await this.updateEmbedding(id, embedding);

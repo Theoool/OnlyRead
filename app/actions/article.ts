@@ -2,7 +2,7 @@
 
 import { requireUser } from './utils';
 import { ArticlesRepository } from '@/lib/core/reading/articles.repository';
-import { ArticleSchema } from '@/lib/shared/validation/schemas';
+import { ArticleSchema, ArticleUpdateSchema } from '@/lib/shared/validation/schemas';
 import { devCache } from '@/lib/infrastructure/cache/dev-cache';
 import { IndexingService } from '@/lib/core/indexing/service';
 import { prisma } from '@/lib/infrastructure/database/prisma';
@@ -79,9 +79,28 @@ export async function updateArticleProgress(id: string, progressData: any) {
   const user = await requireUser();
 
   // Merge id into the request body
-  const data = { ...progressData, id };
+  const data: any = { ...progressData, id };
 
-  const article = await ArticlesRepository.update(user.id, data);
+  // Map lastReadSentence -> currentPosition
+  if (data.lastReadSentence !== undefined) {
+    data.currentPosition = data.lastReadSentence;
+    delete data.lastReadSentence;
+  }
+
+  // Remove lastRead (not a database field)
+  if (data.lastRead) {
+    delete data.lastRead;
+  }
+
+  // Ensure progress is an integer
+  if (typeof data.progress === 'number') {
+    data.progress = Math.round(data.progress);
+  }
+
+  // Validate to ensure no extra fields
+  const validatedData = ArticleUpdateSchema.parse(data);
+
+  const article = await ArticlesRepository.update(user.id, validatedData);
 
   // Invalidate caches
   revalidatePath('/');

@@ -8,12 +8,14 @@ import { prisma } from '@/lib/infrastructure/database/prisma'
 import { unifiedGraph } from '@/lib/core/ai/graph/workflow'
 import { runWithAiStreamContext } from '@/lib/core/ai/streaming/context'
 import { encodeSseEvent } from '@/lib/core/ai/streaming/sse'
+import { SummaryService } from '@/lib/core/learning/summary.service'
 
 const ChatRequestSchema = z.object({
   messages: z.array(z.any()).optional(),
   message: z.string().optional(),
   sessionId: z.string().optional(),
   mode: z.enum(['qa', 'tutor', 'copilot']).default('qa'),
+  uiIntent: z.string().optional(),
   currentTopic: z.string().optional(),
   masteryLevel: z.number().optional(),
   context: z
@@ -58,7 +60,7 @@ export async function POST(req: Request) {
     return createErrorResponse(error)
   }
 
-  const { messages, message: legacyMessage, sessionId, mode, context, currentTopic, masteryLevel } = parsed
+  const { messages, message: legacyMessage, sessionId, mode, uiIntent, context, currentTopic, masteryLevel } = parsed
   const sanitizedArticleIds = Array.isArray(context?.articleIds)
     ? Array.from(
         new Set(
@@ -113,6 +115,7 @@ export async function POST(req: Request) {
             userMessage,
             userId: user.id,
             mode,
+            uiIntent,
             context: {
               selection: context?.selection,
               currentContent: context?.currentContent,
@@ -175,6 +178,25 @@ export async function POST(req: Request) {
                 sources,
               },
             })
+
+            // Increment message count and trigger summary generation if needed
+            await SummaryService.incrementMessageCount(sessionId)
+            
+            // Async summary generation (don't block response)
+            const sessionForSummary = await prisma.learningSession.findUnique({
+              where: { id: sessionId },
+              select: { messageCount: true, summary: true }
+            })
+            
+            if (sessionForSummary && SummaryService.shouldGenerateSummary(
+              sessionForSummary.messageCount, 
+              !!sessionForSummary.summary
+            )) {
+              // Generate summary in background
+              SummaryService.generateAndSaveSummary(sessionId).catch(err => {
+                console.error('[ChatAPI] Background summary generation failed:', err)
+              })
+            }
           } catch (e) {
             send('error', { message: 'Failed to persist session', detail: String(e) })
           }

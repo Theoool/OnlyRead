@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 import {
@@ -10,7 +11,9 @@ import {
   Clipboard,
   User,
   LogOut,
+  GraduationCap,
 } from "lucide-react";
+import Link from "next/link";
 import { useAuthStore } from "@/lib/store/useAuthStore";
 import { useFileImport } from "@/lib/hooks/home/useFileImport";
 import { isUrl } from "@/lib/utils";
@@ -22,6 +25,7 @@ interface HomeSidebarProps {
 }
 
 export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
+  const router = useRouter();
   const { isAuthenticated, user, logout, isLoading: isAuthLoading } = useAuthStore();
   const [value, setValue] = useState("");
   const [isDragging, setIsDragging] = useState(false);
@@ -40,6 +44,10 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
     onSuccess: (mode) => {
       setValue("");
       onSuccess?.(mode);
+    },
+    onLocalReady: (localId) => {
+      // 【本地优先】文件存入 IndexedDB 后立即跳转阅读
+      router.push(`/read?localId=${localId}`);
     }
   });
 
@@ -180,6 +188,34 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
       </motion.header>
 
       <QuickStats />
+
+      {/* Learning Center Entry */}
+      {isAuthenticated && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12 }}
+          className="mb-4"
+        >
+          <Link
+            href="/learning"
+            className="flex items-center gap-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors group"
+          >
+            <div className="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center">
+              <GraduationCap className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <div className="font-medium text-sm text-zinc-900 dark:text-zinc-100">
+                学习中心
+              </div>
+              <div className="text-xs text-zinc-500">
+                AI 导师陪伴你的学习之旅
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-indigo-500 group-hover:translate-x-1 transition-transform" />
+          </Link>
+        </motion.div>
+      )}
 
       {/* Search Bar */}
       <motion.div

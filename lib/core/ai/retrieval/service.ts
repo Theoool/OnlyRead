@@ -45,26 +45,68 @@ export class RetrievalService {
     }
     const filter = this.sanitizeFilter(options.filter)
 
-    console.log(`[RetrievalService] Search started - mode: ${mode}, userId: ${userId}, query: "${query.substring(0, 50)}..."`);
-    console.log(`[RetrievalService] Filter:`, JSON.stringify(filter));
-
     if (mode === 'comprehensive' && (filter?.articleIds?.length || filter?.collectionId)) {
-        console.log(`[RetrievalService] Using comprehensive mode (summaries)`);
         return this.searchSummaries(userId, filter);
     }
 
-    const vectorResult = await this.searchChunks(query, userId, filter, topK);
+    // Hybrid search: parallel vector + full-text with result merging
+    const [vectorResult, fullTextResult] = await Promise.all([
+      this.searchChunks(query, userId, filter, topK),
+      this.searchFullText(query, userId, filter, topK)
+    ]);
 
-    if (vectorResult.sources.length === 0) {
-      console.log(`[RetrievalService] No vector results, trying full-text fallback`);
-      return this.searchFullText(query, userId, filter, topK);
-    }
+    // Merge and deduplicate results
+    return this.mergeResults(vectorResult, fullTextResult, topK);
+  }
 
-    return vectorResult;
+  /**
+   * Merge vector and full-text search results
+   * Uses reciprocal rank fusion for scoring
+   */
+  private static mergeResults(
+    vectorResult: RetrievalResult, 
+    fullTextResult: RetrievalResult, 
+    topK: number
+  ): RetrievalResult {
+    const k = 60; // RRF constant
+    const scores = new Map<string, { source: any; score: number }>();
+
+    // Score vector results (rank-based)
+    vectorResult.sources.forEach((source, index) => {
+      const rank = index + 1;
+      const rrfScore = 1 / (k + rank);
+      scores.set(source.articleId, { source, score: rrfScore });
+    });
+
+    // Score full-text results and merge
+    fullTextResult.sources.forEach((source, index) => {
+      const rank = index + 1;
+      const rrfScore = 1 / (k + rank);
+      const existing = scores.get(source.articleId);
+      
+      if (existing) {
+        // Boost score if found in both
+        existing.score += rrfScore * 1.5;
+      } else {
+        scores.set(source.articleId, { source, score: rrfScore });
+      }
+    });
+
+    // Sort by combined score and take topK
+    const mergedSources = Array.from(scores.values())
+      .sort((a, b) => b.score - a.score)
+      .slice(0, topK)
+      .map(item => item.source);
+
+    // Build documents string
+    const documents = mergedSources.map((s, idx) =>
+      `【资料${idx + 1}】标题：${s.title}\n来源：${s.domain || ''}\n片段：\n${s.excerpt}`
+    ).join('\n\n');
+
+    return { documents, sources: mergedSources };
   }
 
   private static async searchSummaries(userId: string, filter: RetrievalOptions['filter']): Promise<RetrievalResult> {
-    console.log(`[RetrievalService] Fetching summaries for userId: ${userId}`);
     
     try {
       let articles: { id: string; title: string | null; summary: string | null; domain: string | null }[] = [];
@@ -119,8 +161,6 @@ export class RetrievalService {
 
   if (filter?.articleIds?.length) {
 
-    console.log(`[RetrievalService] Searching chunks for articleIds啦啦啦: ${filter.articleIds}`);  
-    
   const results = await prisma.$queryRaw<RetrievalRow[]>`
   SELECT c.id, c.content, a.id as "articleId", a.title, a.domain,
          1 - (c.embedding <=> ${queryVector}::vector) as similarity
@@ -166,12 +206,9 @@ export class RetrievalService {
 }
 
   private static async searchFullText(query: string, userId: string, filter: RetrievalOptions['filter'], topK: number): Promise<RetrievalResult> {
-    console.log(`[RetrievalService] Full-text search for: "${query.substring(0, 50)}..."`);
-
     try {
       const trimmedQuery = query.trim();
       if (!trimmedQuery) {
-        console.log('[RetrievalService] No valid search terms for full-text');
         return { documents: "", sources: [] };
       }
 
@@ -204,7 +241,7 @@ export class RetrievalService {
           LIMIT ${topK};
         `;
 
-        console.log(`[RetrievalService] Full-text search found ${retrieved.length} articles`);
+
 
         if (retrieved.length === 0) {
           return this.searchSubstring(query, userId, filter, topK);
@@ -258,7 +295,7 @@ export class RetrievalService {
           LIMIT ${topK};
         `;
 
-        console.log(`[RetrievalService] Full-text search found ${retrieved.length} articles`);
+
 
         if (retrieved.length === 0) {
           return this.searchSubstring(query, userId, filter, topK);
@@ -309,8 +346,6 @@ export class RetrievalService {
         ORDER BY rank DESC
         LIMIT ${topK};
       `;
-
-      console.log(`[RetrievalService] Full-text search found ${retrieved.length} articles`);
 
       // If still no results, try simple substring match as last resort
       if (retrieved.length === 0) {
@@ -368,8 +403,6 @@ export class RetrievalService {
  
   
   private static async searchSubstring(query: string, userId: string, filter: RetrievalOptions['filter'], topK: number): Promise<RetrievalResult> {
-    console.log(`[RetrievalService] Substring search for: "${query.substring(0, 50)}..."`);
-
     try {
       // Get candidate articles based on filter
       const articles = await prisma.article.findMany({
@@ -407,8 +440,6 @@ export class RetrievalService {
           if (results.length >= topK) break;
         }
       }
-
-      console.log(`[RetrievalService] Substring search found ${results.length} articles`);
 
       if (results.length === 0) {
         return { documents: "", sources: [] };

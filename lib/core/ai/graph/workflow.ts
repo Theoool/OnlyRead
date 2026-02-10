@@ -3,7 +3,6 @@ import { GraphState, IGraphState } from './state';
 import { supervisorNode } from './nodes/supervisor';
 import { explanationNode, quizNode, codeNode, planNode } from './nodes/generators';
 import { retrieverNode } from './nodes/retriever';
-import { directAnswerNode } from './nodes/direct-answer';
 import { queryRewriteNode } from './nodes/query-rewrite';
 
 // Initialize the graph
@@ -19,7 +18,6 @@ workflow.addNode("explain", explanationNode);
 workflow.addNode("quiz", quizNode);
 workflow.addNode("code", codeNode);
 workflow.addNode("plan", planNode);
-workflow.addNode("direct_answer", directAnswerNode);
 
 // Define Edges
 // 1. Start -> Supervisor (Determine Intent)
@@ -41,7 +39,6 @@ workflow.addConditionalEdges(
     quiz: "quiz",
     code: "code",
     plan: "plan",
-    direct_answer: "direct_answer",
     end: END
   }
 );
@@ -58,7 +55,6 @@ workflow.addConditionalEdges(
     quiz: "quiz",
     code: "code",
     plan: "plan",
-    direct_answer: "direct_answer"
   }
 );
 
@@ -67,7 +63,6 @@ workflow.addEdge("explain" as any, END);
 workflow.addEdge("quiz" as any, END);
 workflow.addEdge("code" as any, END);
 workflow.addEdge("plan" as any, END);
-workflow.addEdge("direct_answer" as any, END);
 
 // Compile
 export const unifiedGraph = workflow.compile();

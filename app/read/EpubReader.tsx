@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { LocalBook } from '@/lib/db';
+import { LocalBook, type SyncStatus } from '@/lib/db';
 import { useTheme } from 'next-themes';
-import { Loader2, List, X, Sparkles, MessageSquare, Check, ChevronRight, BookOpen } from 'lucide-react';
+import { Loader2, List, X, Sparkles, MessageSquare, Check, ChevronRight, BookOpen, Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useConceptStore, ConceptData } from '@/lib/store/useConceptStore';
@@ -71,38 +71,46 @@ export function EpubReader({ book }: EpubReaderProps) {
 
   // Update theme styles
   const updateTheme = useCallback((rendition: any) => {
-    if (!rendition) return;
-    const isDark = theme === 'dark';
-    const textColor = isDark ? '#E4E4E7' : '#27272A'; // zinc-200 : zinc-800
-    const bg = isDark ? '#000000' : '#FAFAFA';
+    if (!rendition || !rendition.themes) {
+      console.warn('Rendition or themes not available');
+      return;
+    }
+    
+    try {
+      const isDark = theme === 'dark';
+      const textColor = isDark ? '#E4E4E7' : '#27272A'; // zinc-200 : zinc-800
+      const bg = isDark ? '#000000' : '#FAFAFA';
 
-    rendition.themes.register('custom', {
-       body: {
-         color: textColor,
-         background: bg,
-         'font-family': 'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
-         'padding-top': '40px !important',
-         'padding-bottom': '40px !important',
-         'padding-left': '20px !important',
-         'padding-right': '20px !important',
-         'max-width': '768px !important', // Match max-w-3xl
-         'margin': '0 auto !important',
-       },
-       'p': {
-         'font-size': '1.125rem !important',
-         'line-height': '1.8 !important',
-         'text-align': 'justify !important',
-         'margin-bottom': '1.5em !important'
-       },
-       'h1': { 'font-family': 'serif', 'margin-top': '2em', 'font-weight': '700' },
-       'h2': { 'font-family': 'serif', 'margin-top': '1.5em', 'font-weight': '700' },
-       'h3': { 'font-family': 'serif', 'margin-top': '1.2em', 'font-weight': '700' },
-       'img': { 'max-width': '100%', 'border-radius': '0.5rem' },
-       '::selection': {
-           'background': isDark ? 'rgba(168, 85, 247, 0.4)' : 'rgba(168, 85, 247, 0.2)'
-       }
-    });
-    rendition.themes.select('custom');
+      rendition.themes.register('custom', {
+         body: {
+           color: textColor,
+           background: bg,
+           'font-family': 'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
+           'padding-top': '40px !important',
+           'padding-bottom': '40px !important',
+           'padding-left': '20px !important',
+           'padding-right': '20px !important',
+           'max-width': '768px !important', // Match max-w-3xl
+           'margin': '0 auto !important',
+         },
+         'p': {
+           'font-size': '1.125rem !important',
+           'line-height': '1.8 !important',
+           'text-align': 'justify !important',
+           'margin-bottom': '1.5em !important'
+         },
+         'h1': { 'font-family': 'serif', 'margin-top': '2em', 'font-weight': '700' },
+         'h2': { 'font-family': 'serif', 'margin-top': '1.5em', 'font-weight': '700' },
+         'h3': { 'font-family': 'serif', 'margin-top': '1.2em', 'font-weight': '700' },
+         'img': { 'max-width': '100%', 'border-radius': '0.5rem' },
+         '::selection': {
+             'background': isDark ? 'rgba(168, 85, 247, 0.4)' : 'rgba(168, 85, 247, 0.2)'
+         }
+      });
+      rendition.themes.select('custom');
+    } catch (error) {
+      console.error('Error applying theme:', error);
+    }
   }, [theme]);
 
   // Keyboard navigation
@@ -243,6 +251,9 @@ export function EpubReader({ book }: EpubReaderProps) {
                 onAiToggle={() => setIsCopilotOpen((v) => !v)}
             />
 
+           {/* Sync Status Indicator */}
+           <SyncStatusIndicator book={book} />
+
            {/* Reader Area */}
            <div className="flex-1 w-full h-full relative z-10 overflow-hidden flex pt-[60px]">
                <div className="flex-1 relative">
@@ -262,10 +273,21 @@ export function EpubReader({ book }: EpubReaderProps) {
                             manager: 'continuous',
                             width: '100%',
                             height: '100%',
+                            allowScriptedContent: true,
+                            allowPopups: true,
                         }}
                         getRendition={(rendition) => {
+                            if (!rendition) {
+                              console.warn('Rendition is undefined');
+                              return;
+                            }
+                            
                             renditionRef.current = rendition;
-                            updateTheme(rendition);
+                            
+                            // Delay theme update to ensure rendition is fully initialized
+                            setTimeout(() => {
+                              updateTheme(rendition);
+                            }, 0);
                             
                             // Initialize progress
                             rendition.on('relocated', (location: any) => {
@@ -465,5 +487,95 @@ export function EpubReader({ book }: EpubReaderProps) {
           layoutMode="flat"
        />
     </div>
+  );
+}
+
+// 同步状态指示器组件
+function SyncStatusIndicator({ book }: { book: LocalBook }) {
+  const router = useRouter();
+  
+  const getStatusConfig = (status: SyncStatus) => {
+    switch (status) {
+      case 'local':
+        return {
+          icon: <CloudOff className="w-3 h-3" />,
+          text: '本地模式',
+          color: 'text-zinc-500',
+          bgColor: 'bg-zinc-100 dark:bg-zinc-800',
+          showSwitch: false,
+        };
+      case 'uploading':
+        return {
+          icon: <Loader2 className="w-3 h-3 animate-spin" />,
+          text: `上传中 ${book.syncProgress || 0}%`,
+          color: 'text-blue-500',
+          bgColor: 'bg-blue-50 dark:bg-blue-950/30',
+          showSwitch: false,
+        };
+      case 'processing':
+        return {
+          icon: <Loader2 className="w-3 h-3 animate-spin" />,
+          text: `解析中 ${book.syncProgress || 0}%`,
+          color: 'text-amber-500',
+          bgColor: 'bg-amber-50 dark:bg-amber-950/30',
+          showSwitch: false,
+        };
+      case 'synced':
+        return {
+          icon: <Cloud className="w-3 h-3" />,
+          text: '已同步',
+          color: 'text-green-500',
+          bgColor: 'bg-green-50 dark:bg-green-950/30',
+          showSwitch: true,
+        };
+      case 'error':
+        return {
+          icon: <RefreshCw className="w-3 h-3" />,
+          text: '同步失败',
+          color: 'text-red-500',
+          bgColor: 'bg-red-50 dark:bg-red-950/30',
+          showSwitch: false,
+        };
+      default:
+        return {
+          icon: <CloudOff className="w-3 h-3" />,
+          text: '本地模式',
+          color: 'text-zinc-500',
+          bgColor: 'bg-zinc-100 dark:bg-zinc-800',
+          showSwitch: false,
+        };
+    }
+  };
+
+  const config = getStatusConfig(book.syncStatus);
+
+  const handleSwitchToCloud = () => {
+    if (book.cloudCollectionId) {
+      router.push(`/read?id=${book.cloudArticleId || book.cloudCollectionId}`);
+    } else if (book.cloudArticleId) {
+      router.push(`/read?id=${book.cloudArticleId}`);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`fixed top-3 left-6 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full ${config.bgColor} border border-zinc-200/50 dark:border-zinc-800/50`}
+    >
+      <span className={config.color}>{config.icon}</span>
+      <span className={`text-[11px] font-medium ${config.color}`}>
+        {config.text}
+      </span>
+      
+      {config.showSwitch && (
+        <button
+          onClick={handleSwitchToCloud}
+          className="ml-1 px-2 py-0.5 bg-white dark:bg-zinc-800 rounded text-[10px] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors border border-zinc-200 dark:border-zinc-700"
+        >
+          切换云端
+        </button>
+      )}
+    </motion.div>
   );
 }

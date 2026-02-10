@@ -147,6 +147,126 @@ export const GenerativeAppSchema = z.object({
   layout: AtomSchema.describe('Root component of the UI tree'),
 });
 
+// ==========================================
+// 4. Pedagogical UI Intent System
+// ==========================================
+// These define the "intent" behind the UI, guiding what type of component to generate
+
+export const UIIntentEnum = z.enum([
+  'text',           // Pure text/markdown explanation
+  'mindmap',        // Concept map / knowledge graph visualization
+  'flashcard',      // Concept memory cards (front/back)
+  'quiz',           // Multiple choice / true-false questions
+  'fill_blank',     // Fill-in-the-blank active recall
+  'timeline',       // Chronological sequence visualization
+  'comparison',     // Side-by-side A vs B table
+  'simulation',     // Interactive simulation with sliders/variables
+  'code_sandbox',   // Runnable code editor with exercises
+  'summary',        // Structured summary with key points
+]);
+
+export type UIIntent = z.infer<typeof UIIntentEnum>;
+
+// ==========================================
+// 5. High-Level Pedagogical Component Schemas
+// ==========================================
+// These are semantic schemas that AI can generate, 
+// which the frontend will render with rich visuals
+
+// Mindmap Node for hierarchical concept visualization
+export const MindmapNodeSchema: z.ZodType<any> = z.lazy(() => z.object({
+  id: z.string(),
+  label: z.string(),
+  description: z.string().optional(),
+  children: z.array(MindmapNodeSchema).optional(),
+  style: z.enum(['primary', 'secondary', 'accent']).optional(),
+}));
+
+export const MindmapSchema = z.object({
+  type: z.literal('mindmap'),
+  title: z.string(),
+  rootNode: MindmapNodeSchema,
+  focusNodeId: z.string().optional().describe('Which node is currently being discussed'),
+});
+
+// Flashcard for spaced repetition
+export const FlashcardSchema = z.object({
+  type: z.literal('flashcard'),
+  cards: z.array(z.object({
+    id: z.string(),
+    front: z.string().describe('Question or term'),
+    back: z.string().describe('Answer or definition'),
+    hint: z.string().optional(),
+    difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+  })),
+  currentIndex: z.number().default(0),
+});
+
+// Timeline for historical/process visualization  
+export const TimelineSchema = z.object({
+  type: z.literal('timeline'),
+  title: z.string(),
+  events: z.array(z.object({
+    id: z.string(),
+    date: z.string().optional(),
+    label: z.string(),
+    description: z.string(),
+    icon: z.string().optional(),
+  })),
+  direction: z.enum(['horizontal', 'vertical']).default('vertical'),
+});
+
+// Comparison table for A vs B analysis
+export const ComparisonSchema = z.object({
+  type: z.literal('comparison'),
+  title: z.string(),
+  columns: z.array(z.object({
+    header: z.string(),
+    items: z.array(z.string()),
+  })).min(2).max(4),
+  highlightDifferences: z.boolean().default(true),
+});
+
+// Summary with key takeaways
+export const SummarySchema = z.object({
+  type: z.literal('summary'),
+  title: z.string(),
+  overview: z.string().describe('1-2 sentence overview'),
+  keyPoints: z.array(z.object({
+    emoji: z.string().optional(),
+    point: z.string(),
+  })),
+  nextSteps: z.array(z.string()).optional(),
+});
+
+// Interactive Quiz with immediate feedback
+export const InteractiveQuizSchema = z.object({
+  type: z.literal('interactive_quiz'),
+  questions: z.array(z.object({
+    id: z.string(),
+    question: z.string(),
+    options: z.array(z.object({
+      id: z.string(),
+      text: z.string(),
+      isCorrect: z.boolean(),
+    })),
+    explanation: z.string(),
+    hint: z.string().optional(),
+  })),
+  showExplanationOnWrong: z.boolean().default(true),
+});
+
+// Fill in the blank for active recall
+export const FillBlankSchema = z.object({
+  type: z.literal('fill_blank'),
+  sentences: z.array(z.object({
+    id: z.string(),
+    text: z.string().describe('Use {{blank}} to mark blanks'),
+    answers: z.array(z.string()).describe('Acceptable answers for the blank'),
+    hint: z.string().optional(),
+  })),
+});
+
 // Keep legacy schemas for backward compatibility during migration
 export const LegacyExplanationSchema = z.object({
   type: z.literal('explanation'),
@@ -171,13 +291,20 @@ export const LegacyCodeSchema = z.object({
   solution: z.string(),
 });
 
-// Union of Old and New
+// Union of Old and New (Extended with Pedagogical UI)
 export const UIComponentSchema = z.discriminatedUnion('type', [
-  GenerativeAppSchema, // The new hotness
-  LegacyExplanationSchema,
-  LegacyQuizSchema,
-  LegacyCodeSchema,
-  // ... others can be deprecated
+  GenerativeAppSchema,      // Full reactive app
+  LegacyExplanationSchema,  // Simple text
+  LegacyQuizSchema,         // Legacy quiz format
+  LegacyCodeSchema,         // Legacy code format
+  // New Pedagogical UI Components
+  MindmapSchema,            // Concept visualization
+  FlashcardSchema,          // Memory cards
+  TimelineSchema,           // Chronological view
+  ComparisonSchema,         // A vs B analysis
+  SummarySchema,            // Structured summary
+  InteractiveQuizSchema,    // Enhanced quiz
+  FillBlankSchema,          // Active recall
 ]);
 
 export const SourceSchema = z.object({
@@ -204,3 +331,13 @@ export type Action = z.infer<typeof ActionSchema>;
 export type GenerativeApp = z.infer<typeof GenerativeAppSchema>;
 export type UIComponent = z.infer<typeof UIComponentSchema>;
 export type LearningResponse = z.infer<typeof LearningResponseSchema>;
+
+// New Pedagogical Types
+export type Mindmap = z.infer<typeof MindmapSchema>;
+export type MindmapNode = z.infer<typeof MindmapNodeSchema>;
+export type Flashcard = z.infer<typeof FlashcardSchema>;
+export type Timeline = z.infer<typeof TimelineSchema>;
+export type Comparison = z.infer<typeof ComparisonSchema>;
+export type Summary = z.infer<typeof SummarySchema>;
+export type InteractiveQuiz = z.infer<typeof InteractiveQuizSchema>;
+export type FillBlank = z.infer<typeof FillBlankSchema>;

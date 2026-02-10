@@ -2,6 +2,8 @@ import { prisma } from "@/lib/infrastructure/database/prisma";
 import { embeddings, generateEmbedding } from "@/lib/infrastructure/ai/embedding";
 import { chunkText } from "@/lib/text-processing";
 import { randomUUID } from "crypto";
+import { ChatOpenAI } from "@langchain/openai";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
 export class IndexingService {
   /**
@@ -66,43 +68,89 @@ export class IndexingService {
     }
 
     // 3. Update Article Metadata & Embedding (Fix for Imported Content)
-    try {
-      const totalBlocks = chunks.length;
-      // Estimate: 400 chars per minute for reading speed
-      const totalReadingTime = Math.ceil(content.length / 400);
+    // try {
+    //   const totalBlocks = chunks.length;
+    //   // Estimate: 400 chars per minute for reading speed
+    //   const totalReadingTime = Math.ceil(content.length / 400);
 
-      // Update stats
-      await prisma.article.update({
-        where: { id: articleId },
-        data: {
-          totalBlocks: totalBlocks,
-          totalReadingTime: totalReadingTime,
-          // Only update type if it was missing? No, keep existing.
-        }
-      });
+    //   // --- NEW: Generate AI Summary ---
+    //   console.log(`[Indexing] Article ${articleId}: Generating AI Summary...`);
+    //   const aiSummary = await this.generateSummary(content);
+    //   // --------------------------------
 
-      // Update Article-level Embedding (Title + first 500 chars)
-      const title = article.title || 'Untitled';
-      const domain = article.domain || '';
-      const snippet = content.slice(0, 500).replace(/\n/g, ' ');
-      const textToEmbed = `Title: ${title}\nDomain: ${domain}\nContent: ${snippet}`;
+    //   // Update stats
+    //   await prisma.article.update({
+    //     where: { id: articleId },
+    //     data: {
+    //       totalBlocks: totalBlocks,
+    //       totalReadingTime: totalReadingTime,
+    //       summary: aiSummary, // Save the generated summary
+    //     }
+    //   });
 
-      const articleEmbedding = await generateEmbedding(textToEmbed);
+    //   // Update Article-level Embedding (Title + Summary + first 500 chars)
+    //   const title = article.title || 'Untitled';
+    //   const domain = article.domain || '';
+    //   // Use summary in the embedding text for better retrieval matching
+    //   const textToEmbed = `Title: ${title}\nDomain: ${domain}\nSummary: ${aiSummary}\nContent: ${content.slice(0, 500)}`;
 
-      await prisma.$executeRaw`
-        UPDATE articles 
-        SET 
-          embedding = ${JSON.stringify(articleEmbedding)}::vector(1536),
-          "searchVector" = to_tsvector('simple', ${title} || ' ' || ${content})
-        WHERE id = ${articleId}::uuid
-      `;
+    //   const articleEmbedding = await generateEmbedding(textToEmbed);
 
-      console.log(`[Indexing] Article ${articleId}: Metadata & Embeddings updated`);
+    //   await prisma.$executeRaw`
+    //     UPDATE articles 
+    //     SET 
+    //       embedding = ${JSON.stringify(articleEmbedding)}::vector(1536),
+    //       "searchVector" = to_tsvector('simple', ${title} || ' ' || ${aiSummary} || ' ' || ${content})
+    //     WHERE id = ${articleId}::uuid
+    //   `;
 
-    } catch (e) {
-      console.error(`[Indexing] Failed to update article metadata/embedding for ${articleId}`, e);
-    }
+    //   console.log(`[Indexing] Article ${articleId}: Metadata & Embeddings updated`);
+
+    // } catch (e) {
+    //   console.error(`[Indexing] Failed to update article metadata/embedding for ${articleId}`, e);
+    // }
 
     console.log(`[Indexing] Article ${articleId}: Indexing complete`);
+  }
+
+  /**
+   * Generates a structured summary of the content using LLM.
+   */
+  private static async generateSummary(text: string): Promise<string> {
+    try {
+      // Use a cost-effective model for summarization if available, otherwise default
+      
+
+      const llm = new ChatOpenAI({
+        modelName: process.env.AI_MODEL_NAME,
+        temperature: 0.3,
+        apiKey: process.env.OPENAI_API_KEY,
+        configuration: { baseURL: process.env.OPENAI_BASE_URL },
+      });
+
+      // Truncate text to avoid token limits (approx 50k chars is usually safe for 128k context models)
+      // We focus on the implementation of a "Macro-Summary"
+      const truncatedText = text.length > 50000 ? text.slice(0, 50000) + "...(truncated)" : text;
+
+      const response = await llm.invoke([
+        new SystemMessage(`You are an expert content summarizer. 
+Your goal is to create a comprehensive yet concise summary of the provided text.
+The summary will be used to understand the core topics and logic of the document without reading the whole text.
+
+Output Format:
+1. **Core Subject**: One sentence describing what this is about.
+2. **Key Concepts**: A bullet list of 3-5 main concepts or entities defined in the text.
+3. **Logical Outline**: A brief paragraph explaining the flow or argument of the text.
+
+Keep the total length under 400 words. Language: Chinese (Simplified).`),
+        new HumanMessage(`Create a structured summary for the following content:\n\n${truncatedText}`)
+      ]);
+
+      return typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+    } catch (error) {
+      console.error("[Indexing] Summary generation failed:", error);
+      // Fallback: return a simple slice
+      return text.slice(0, 300) + "...";
+    }
   }
 }

@@ -15,6 +15,7 @@ export const ArticleSchema = z.object({
   url: z.string().url().nullable().optional(),
   domain: z.string().nullable().optional(),
   progress: z.number().min(0).max(100).default(0),
+  currentPosition: z.number().int().min(0).default(0),
   totalBlocks: z.number().int().min(0).default(0),
   completedBlocks: z.number().int().min(0).default(0),
 });

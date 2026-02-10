@@ -189,7 +189,7 @@ export default function QAClientPage({ articles, collections }: QAClientPageProp
             {sessionId ? (
                 <CopilotWidget 
                     sessionId={sessionId}
-                    mode="qa" 
+                    // mode="qa" 
                     variant="full"
                     context={context}
                 />

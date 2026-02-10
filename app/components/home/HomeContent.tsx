@@ -1,5 +1,5 @@
 import { twMerge } from "tailwind-merge";
-import { History, Library, Sparkles, Command } from "lucide-react";
+import { History, Library, Sparkles, Command, GraduationCap } from "lucide-react";
 import { Article } from "@/lib/core/reading/articles.service";
 import { ArticleList } from "./ArticleList";
 import { CollectionList } from "./CollectionList";
@@ -60,9 +60,15 @@ export function HomeContent({
         </div>
         
         <div className="flex items-center gap-4">
+            {/* Learning Entry */}
+            <a href="/learning" className="flex items-center gap-1 text-[10px] font-mono text-indigo-500 hover:text-indigo-600 transition-colors group">
+                <GraduationCap className="w-3 h-3 group-hover:animate-pulse" />
+                学习
+            </a>
+
             {/* QA Entry */}
-            <a href="/qa" className="flex items-center gap-1 text-[10px] font-mono text-indigo-500 hover:text-indigo-600 transition-colors group">
-                <Sparkles className="w-3 h-3 group-hover:animate-pulse" />
+            <a href="/qa" className="flex items-center gap-1 text-[10px] font-mono text-zinc-500 hover:text-zinc-600 transition-colors group">
+                <Sparkles className="w-3 h-3" />
                 问答
             </a>
 
