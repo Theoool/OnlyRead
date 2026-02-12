@@ -44,7 +44,7 @@ export async function saveArticle(data: any) {
     }
 
     try {
-      await IndexingService.processArticle(article.id, user.id);
+      await IndexingService.processArticle(article.id, user.id, user);
 
       if (job) {
         await prisma.job.update({

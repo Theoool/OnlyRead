@@ -52,7 +52,7 @@ export async function POST(req: Request) {
 
     // 2. Process (Sync - blocking response)
     try {
-      await IndexingService.processArticle(articleId, user.id);
+      await IndexingService.processArticle(articleId, user.id, user);
       
       // Update Job
       await prisma.job.update({

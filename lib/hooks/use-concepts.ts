@@ -10,7 +10,7 @@ import { getCachedConcept, setCachedConcept } from '@/lib/cache'
  * 获取所有概念卡片（使用Zustand store + React Query缓存）
  */
 export function useConcepts() {
-  const queryClient = useQueryClient()
+ 
   const { concepts, loadConcepts, loading } = useConceptStore()
 
   // 使用useQuery来管理加载状态和缓存

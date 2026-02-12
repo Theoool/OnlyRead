@@ -68,7 +68,7 @@ async function main() {
   } else {
     console.log("No chunks found. Attempting to index the first article...");
     const article = articles[0];
-    await IndexingService.processArticle(article.id, user.id);
+    await IndexingService.processArticle(article.id, user.id, user);
     console.log("Indexing triggered. Please re-run check.");
   }
 }

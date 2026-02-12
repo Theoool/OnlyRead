@@ -40,7 +40,7 @@ export async function POST(req: Request) {
             where: {
               userId: user.id,
               id: article.id,
-              deletedAt: null,
+         
             },
           })
 

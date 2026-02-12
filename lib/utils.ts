@@ -23,3 +23,7 @@ export function isUrl(input: string) {
 export function truncate(input: string, n = 20) {
   return input.length > n ? `${input.slice(0, n)}…` : input;
 }
+export function isVip(userId: string) {
+
+  return userId === "vip-user-id";
+}

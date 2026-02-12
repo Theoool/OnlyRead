@@ -4,6 +4,7 @@ import { getServiceClient } from '@/lib/supabase/server'
 import { FileParser } from '@/lib/file-parser'
 import { ForbiddenError } from '@/lib/infrastructure/error'
 import { revalidatePath } from 'next/cache'
+import { User } from '@/lib/store/useAuthStore'
 
 export async function importFileForUser(params: {
   userId: string
@@ -12,6 +13,26 @@ export async function importFileForUser(params: {
   fileType?: string
 }) {
   const { userId, filePath, originalName } = params
+  
+  // 获取用户完整信息
+  const userRecord = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      fullName: true,
+      avatarUrl: true,
+      subscriptionType: true
+    }
+  })
+
+  const user: User | null = userRecord ? {
+    id: userRecord.id,
+    email: userRecord.email,
+    fullName: userRecord.fullName || undefined,
+    avatarUrl: userRecord.avatarUrl || undefined,
+    subscriptionType: userRecord.subscriptionType as 'free' | 'premium'
+  } : null
 
   if (!filePath || !originalName) {
     throw new Error('Missing filePath or originalName')
@@ -154,7 +175,7 @@ export async function importFileForUser(params: {
           // Process sequentially to be safe, or Promise.all if we trust the API limit
           for (const article of createdArticles) {
             try {
-              await IndexingService.processArticle(article.id, userId);
+              await IndexingService.processArticle(article.id, userId, user);
               completed++;
 
               if (job && createdArticles.length > 0 && completed % 2 === 0) {

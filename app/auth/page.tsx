@@ -12,6 +12,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/store/useAuthStore";
+import { prisma } from "@/lib/infrastructure/database/prisma";
 
 type Mode = "signin" | "signup";
 
@@ -79,9 +80,11 @@ function AuthContent() {
         if (!res.ok) {
           throw new Error(data.error || "验证失败，请检查验证码是否正确");
         }
-        
+        const user = await prisma.user.findFirst({
+          where: { email: formData.email },
+        });
         // 登录成功
-        setUser(data.user);
+        setUser({...data.user, subscriptionType: user?.subscriptionType || "free"});
         setToken(data.session?.access_token || null);
         useAuthStore.getState().setDataMode("cloud");
         

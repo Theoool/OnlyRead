@@ -103,7 +103,13 @@ function RemoteArticleReader({
 
   // Compute current context text (window of 10 sentences)
   const currentContextText = useMemo(() => {
-    if (!sentences || sentences.length === 0) return undefined;
+    if (!sentences || sentences.length === 0) {
+      // Fallback: return article title and basic info when no sentences available
+      const activeArticle = article || initialArticle;
+      return activeArticle 
+        ? `正在阅读: ${activeArticle.title || '未知文章'}\n文章ID: ${activeArticle.id}`
+        : '当前无活动文章';
+    }
     const start = Math.max(0, currentIndex - 2);
     const end = Math.min(sentences.length, currentIndex + 8);
     return sentences
@@ -111,7 +117,7 @@ function RemoteArticleReader({
       .map((s: any) => (typeof s === 'string' ? s : String(s?.text ?? '')))
       .filter((s: string) => s.trim().length > 0)
       .join(' ');
-  }, [sentences, currentIndex]);
+  }, [sentences, currentIndex, article, initialArticle]);
   
   // Concept Logic
   const { concepts, addConcept, loadConcepts } = useConceptStore();

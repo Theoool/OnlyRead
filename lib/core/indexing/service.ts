@@ -4,12 +4,14 @@ import { chunkText } from "@/lib/text-processing";
 import { randomUUID } from "crypto";
 import { ChatOpenAI } from "@langchain/openai";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { User } from "@/lib/store/useAuthStore";
 
 export class IndexingService {
   /**
    * Process an article: Chunk it, generate embeddings, and save to DB
    */
-  static async processArticle(articleId: string, userId: string) {
+  static async processArticle(articleId: string, userId: string, user?: User | null) {
+
     const article = await prisma.article.findUnique({
       where: { id: articleId },
       include: { body: true }
@@ -68,47 +70,50 @@ export class IndexingService {
     }
 
     // 3. Update Article Metadata & Embedding (Fix for Imported Content)
-    // try {
-    //   const totalBlocks = chunks.length;
-    //   // Estimate: 400 chars per minute for reading speed
-    //   const totalReadingTime = Math.ceil(content.length / 400);
+    try {
+      const totalBlocks = chunks.length;
+      // Estimate: 400 chars per minute for reading speed
+      const totalReadingTime = Math.ceil(content.length / 400);
 
-    //   // --- NEW: Generate AI Summary ---
-    //   console.log(`[Indexing] Article ${articleId}: Generating AI Summary...`);
-    //   const aiSummary = await this.generateSummary(content);
-    //   // --------------------------------
+      // --- NEW: Generate AI Summary ---
+      console.log(`[Indexing] Article ${articleId}: Generating AI Summary...`);
+     
+     
+      const aiSummary = await this.generateSummary(content, user);
+      // --------------------------------
+      console.log(`[Indexing] Article ${articleId}: AI Summary generated`, aiSummary);
+ 
+      // Update stats
+      await prisma.article.update({
+        where: { id: articleId },
+        data: {
+          totalBlocks: totalBlocks,
+          totalReadingTime: totalReadingTime,
+          summary: aiSummary, // Save the generated summary
+        }
+      });
 
-    //   // Update stats
-    //   await prisma.article.update({
-    //     where: { id: articleId },
-    //     data: {
-    //       totalBlocks: totalBlocks,
-    //       totalReadingTime: totalReadingTime,
-    //       summary: aiSummary, // Save the generated summary
-    //     }
-    //   });
+      // Update Article-level Embedding (Title + Summary + first 500 chars)
+      const title = article.title || 'Untitled';
+      const domain = article.domain || '';
+      // Use summary in the embedding text for better retrieval matching
+      const textToEmbed = `Title: ${title}\nDomain: ${domain}\nSummary: ${aiSummary}\nContent: ${content.slice(0, 500)}`;
 
-    //   // Update Article-level Embedding (Title + Summary + first 500 chars)
-    //   const title = article.title || 'Untitled';
-    //   const domain = article.domain || '';
-    //   // Use summary in the embedding text for better retrieval matching
-    //   const textToEmbed = `Title: ${title}\nDomain: ${domain}\nSummary: ${aiSummary}\nContent: ${content.slice(0, 500)}`;
+      const articleEmbedding = await generateEmbedding(textToEmbed);
 
-    //   const articleEmbedding = await generateEmbedding(textToEmbed);
+      await prisma.$executeRaw`
+        UPDATE articles 
+        SET 
+          embedding = ${JSON.stringify(articleEmbedding)}::vector(1536),
+          "searchVector" = to_tsvector('simple', ${title} || ' ' || ${aiSummary} || ' ' || ${content})
+        WHERE id = ${articleId}::uuid
+      `;
 
-    //   await prisma.$executeRaw`
-    //     UPDATE articles 
-    //     SET 
-    //       embedding = ${JSON.stringify(articleEmbedding)}::vector(1536),
-    //       "searchVector" = to_tsvector('simple', ${title} || ' ' || ${aiSummary} || ' ' || ${content})
-    //     WHERE id = ${articleId}::uuid
-    //   `;
+      console.log(`[Indexing] Article ${articleId}: Metadata & Embeddings updated`);
 
-    //   console.log(`[Indexing] Article ${articleId}: Metadata & Embeddings updated`);
-
-    // } catch (e) {
-    //   console.error(`[Indexing] Failed to update article metadata/embedding for ${articleId}`, e);
-    // }
+    } catch (e) {
+      console.error(`[Indexing] Failed to update article metadata/embedding for ${articleId}`, e);
+    }
 
     console.log(`[Indexing] Article ${articleId}: Indexing complete`);
   }
@@ -116,11 +121,13 @@ export class IndexingService {
   /**
    * Generates a structured summary of the content using LLM.
    */
-  private static async generateSummary(text: string): Promise<string> {
-    try {
-      // Use a cost-effective model for summarization if available, otherwise default
-      
-
+  private static async generateSummary(text: string, user?: User | null): Promise<string> {
+    console.log(user);
+ 
+    if (user?.subscriptionType === 'free') {
+      return "";
+    } else {
+       try {
       const llm = new ChatOpenAI({
         modelName: process.env.AI_MODEL_NAME,
         temperature: 0.3,
@@ -152,5 +159,8 @@ Keep the total length under 400 words. Language: Chinese (Simplified).`),
       // Fallback: return a simple slice
       return text.slice(0, 300) + "...";
     }
+    }
+    
+   
   }
 }

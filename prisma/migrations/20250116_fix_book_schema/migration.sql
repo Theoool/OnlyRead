@@ -170,7 +170,7 @@ SET completed_chapters = (
 UPDATE collections c
 SET reading_progress = CASE
     WHEN c.total_chapters > 0 THEN
-        ROUND((c.completed_chapters::FLOAT / c.total_chapters::FLOAT) * 100, 2)
+        ROUND((c.completed_chapters::FLOAT / c.total_chapters::FLOAT) * 100::NUMERIC, 2)
     ELSE 0
 END
 WHERE c.total_chapters > 0;
@@ -207,7 +207,7 @@ BEGIN
         -- 更新进度百分比
         UPDATE collections
         SET reading_progress = ROUND(
-            (completed_chapters::FLOAT / GREATEST(total_chapters, 1)::FLOAT) * 100, 2
+            (completed_chapters::FLOAT / GREATEST(total_chapters, 1)::FLOAT) * 100::NUMERIC, 2
         )
         WHERE id = NEW.collection_id;
 
@@ -271,7 +271,7 @@ SELECT
     c.reading_progress,
     COUNT(a.id) FILTER (WHERE a.progress > 0 AND a.progress < 99) AS in_progress_chapters,
     COUNT(a.id) FILTER (WHERE a.progress >= 99) AS completed_count,
-    ROUND(AVG(a.progress), 2) AS avg_article_progress
+    ROUND(AVG(a.progress)::NUMERIC, 2) AS avg_article_progress
 FROM collections c
 LEFT JOIN articles a ON a.collection_id = c.id AND a.deleted_at IS NULL
 GROUP BY c.id, c.title, c.type, c.total_chapters, c.completed_chapters, c.reading_progress;

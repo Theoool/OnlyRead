@@ -3,8 +3,7 @@ import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
   try {
-    console.log('=== /api/auth/session called ===')
-
+  
     const supabase = await createClient()
 
     const {
@@ -12,9 +11,7 @@ export async function GET(req: Request) {
       error,
     } = await supabase.auth.getSession()
 
-    console.log('Session error:', error)
-    console.log('Session exists:', !!session)
-
+  
     if (error) {
       console.error('Session API error:', error)
       return NextResponse.json(
@@ -31,7 +28,7 @@ export async function GET(req: Request) {
       })
     }
 
-    console.log('✅ Session found for user:', session.user.email)
+    console.log('✅ Session found for user:', session.user.email,)
 
     return NextResponse.json({
       authenticated: true,

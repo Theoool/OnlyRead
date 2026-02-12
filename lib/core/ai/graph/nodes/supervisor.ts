@@ -184,9 +184,12 @@ Choose the BEST visual format based on content and user intent:
 Prefer rich UI (mindmap, simulation, comparison) over plain text when it enhances understanding!
 
 Retrieval Policy Guidance:
-- If inline reader context is present and there is no filter scope, prefer enabled=false.
-- If nextStep is 'plan' or learningMode is 'macro', prefer mode='comprehensive' and higher topK.
-- If nextStep is 'quiz' or 'code' and there is no filter scope, retrieval is often unnecessary.
+- When article/collection filters are present, ENABLE retrieval to supplement context with relevant document fragments
+- For factual questions (authors, definitions, dates, etc.), ALWAYS enable retrieval even with inline context
+- If inline reader context is present BUT no filters, prefer enabled=false (rely on provided context)
+- If nextStep is 'plan' or learningMode is 'macro', prefer mode='comprehensive' and higher topK
+- If nextStep is 'quiz' or 'code' and there is no filter scope, retrieval is often unnecessary
+- For explanation/understanding steps, enable retrieval to provide supporting evidence
 
 Output ONLY a valid JSON object matching the required schema.`;
 
@@ -207,7 +210,7 @@ Output ONLY a valid JSON object matching the required schema.`;
     const hasInlineContext = !!state.context?.selection || !!state.context?.currentContent
 
     const defaultPolicy = {
-      enabled: hasFilter || !hasInlineContext,
+      enabled: hasFilter,  // 有文章/集合过滤时总是启用检索
       mode: result.nextStep === 'plan' || result.learningMode === 'macro' ? 'comprehensive' : 'fast',
       topK: result.nextStep === 'plan' ? 8 : 5,
       minSimilarity: 0.2,
@@ -247,14 +250,15 @@ Output ONLY a valid JSON object matching the required schema.`;
     const hasInlineContext = !!state.context?.selection || !!state.context?.currentContent
     
     const fallbackPolicy = {
-      enabled: hasFilter || !hasInlineContext,
+      // 在阅读器场景中，优先启用检索
+      enabled: hasFilter,  // 有文章过滤时启用检索
       mode: 'fast' as const,
       topK: 5,
       minSimilarity: 0.2,
       minSources: 0,
       rewriteQuery: (state.messages?.length ?? 0) > 0,
       confidence: 0.5,
-      reason: 'Fallback due to schema validation error',
+      reason: 'Fallback: using article filter for retrieval',
     }
     
     emitAiEvent({
