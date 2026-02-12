@@ -1,10 +1,11 @@
 import { ChatOpenAI } from '@langchain/openai';
-import { 
-  LegacyExplanationSchema as ExplanationSchema, 
-  LegacyQuizSchema as QuizSchema, 
-  LegacyCodeSchema as CodeSchema, 
-  UIComponentSchema 
+import {
+  LegacyExplanationSchema as ExplanationSchema,
+  LegacyQuizSchema as QuizSchema,
+  LegacyCodeSchema as CodeSchema,
+  UIComponentSchema
 } from '@/lib/core/learning/schemas';
+import { UIIntent } from '../state';
 import { z, ZodSchema } from 'zod';
 import { HumanMessage, SystemMessage, BaseMessage } from '@langchain/core/messages';
 import { emitAiEvent, getAiStreamContext } from '../../streaming/context';
@@ -18,19 +19,6 @@ interface Source {
   content?: string;
   url?: string;
 }
-
-type UIIntent = 
-  | 'text' 
-  | 'mindmap' 
-  | 'comparison' 
-  | 'flashcard' 
-  | 'timeline' 
-  | 'summary' 
-  | 'quiz' 
-  | 'fill_blank' 
-  | 'simulation' 
-  | 'code_sandbox' 
-  | 'code';
 
 interface IGraphState {
   userMessage: string;
@@ -169,12 +157,12 @@ function buildContextBlock(state: IGraphState): string {
 /**
  * 创建 LLM 实例
  */
-function createLLM(config: { 
-  temperature?: number; 
+function createLLM(config: {
+  temperature?: number;
   enableStreaming?: boolean;
 } = {}): ChatOpenAI {
   validateEnv();
-  
+
   const { temperature = 0.3, enableStreaming = false } = config;
   const streamEnabled = enableStreaming && !!getAiStreamContext();
 
@@ -214,8 +202,8 @@ async function executeNode<T>(
 
   try {
     const result = await llm.invoke(messages);
-    const content = typeof result.content === 'string' 
-      ? result.content 
+    const content = typeof result.content === 'string'
+      ? result.content
       : JSON.stringify(result.content);
 
     let validatedUI: T;
@@ -496,24 +484,6 @@ ${baseContext}
 
     code_sandbox: {
       temperature: 0.1,
-      systemPrompt: `你是一位编程导师。生成一个带有代码编辑器的互动练习。
-${baseContext}
-
-用户问题：{{userMessage}}
-
-返回一个有效的 JSON 对象：
-{
-  "type": "code",
-  "language": "javascript",
-  "description": "练习任务描述...",
-  "starterCode": "// 开始编码...",
-  "solution": "..."
-}`,
-      outputSchema: CodeSchema
-    },
-
-    code: {
-      temperature: 0.1,
       systemPrompt: `你是一位 Coding Instructor。Create a coding exercise.
 ${baseContext}
 
@@ -522,6 +492,17 @@ User question: {{userMessage}}
 IMPORTANT: Return ONLY a valid JSON object matching the CodeSchema structure.
 Do NOT return a multiple choice question.`,
       outputSchema: CodeSchema
+    },
+
+    explanation: {
+      temperature: 0.3,
+      systemPrompt: `你是一位中文学习导师。你会收到用户提问和相关资料。
+${baseContext}
+
+用户问题：{{userMessage}}
+
+用清晰的 Markdown 格式回答用户问题。如果资料不足，请明确说明。`,
+      outputSchema: ExplanationSchema
     },
 
     text: {
@@ -539,12 +520,8 @@ ${baseContext}
   return configs[uiIntent || 'text'];
 }
 
-// ==========================================
-// 动态建议动作生成器
-// ==========================================
-
 function getSuggestedActions(
-  uiIntent: UIIntent | undefined, 
+  uiIntent: UIIntent | undefined,
   topic?: string
 ): SuggestedAction[] {
   const topicLabel = topic || '这个主题';
@@ -586,9 +563,10 @@ function getSuggestedActions(
       { label: "查看解答", action: "show_solution", type: 'secondary' },
       { label: "运行测试", action: "run_tests", type: 'primary' },
     ],
-    code: [
-      { label: "查看解答", action: "show_solution", type: 'secondary' },
-      { label: "运行测试", action: "run_tests", type: 'primary' },
+    explanation: [
+      { label: "生成思维导图", action: "mindmap", type: 'secondary' },
+      { label: "举个例子", action: "example", type: 'primary' },
+      { label: "测验我的理解", action: "quiz", type: 'secondary' },
     ],
     text: [
       { label: "生成思维导图", action: "mindmap", type: 'secondary' },
@@ -608,10 +586,10 @@ export const explanationNode = async (state: IGraphState): Promise<Partial<IGrap
   const uiIntent = state.uiIntent || 'text';
   const contextData = buildContextBlock(state);
   const promptConfig = getUIIntentPrompt(uiIntent, contextData);
-  
+
   // 关键修复：将用户问题注入到 Prompt 中
   const finalSystemPrompt = promptConfig.systemPrompt.replace(
-    '{{userMessage}}', 
+    '{{userMessage}}',
     state.userMessage
   );
 
@@ -627,7 +605,7 @@ export const explanationNode = async (state: IGraphState): Promise<Partial<IGrap
 
 export const planNode = async (state: IGraphState): Promise<Partial<IGraphState>> => {
   const contextData = buildContextBlock(state);
-  
+
   const systemPrompt = `你是一位资深的领域专家和学习教练。
 ${SAFETY_CONSTRAINTS}
 
@@ -667,7 +645,7 @@ ${contextData}
 
 export const quizNode = async (state: IGraphState): Promise<Partial<IGraphState>> => {
   const contextData = buildContextBlock(state);
-  
+
   const systemPrompt = `你是一位专家教授。请为主题 "${state.currentTopic || '当前主题'}" 生成一个互动测验。
 ${SAFETY_CONSTRAINTS}
 
@@ -691,7 +669,7 @@ ${contextData}
 
 export const codeNode = async (state: IGraphState): Promise<Partial<IGraphState>> => {
   const contextData = buildContextBlock(state);
-  
+
   const systemPrompt = `你是一位 Coding Instructor。Create a coding exercise for: "${state.currentTopic || 'the current topic'}".
 ${SAFETY_CONSTRAINTS}
 

@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "postinstall": "prisma generate",
     "db:index": "npx tsx scripts/update-db-indexes.ts",
-    "dev:warm": "concurrently \"next dev --turbopack\" \"npx tsx scripts/dev-warmup.ts\""
+    "dev:warm": "concurrently \"next dev --turbopack\" \"npx tsx scripts/dev-warmup.ts\"",
+    "test:rag": "npx tsx scripts/check-rag.ts",
+    "test:unified-rag": "npx tsx scripts/test-unified-rag.ts"
   },
   "dependencies": {
     "@langchain/core": "^1.1.17",

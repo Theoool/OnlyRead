@@ -79,7 +79,7 @@ export async function importUrl(url: string, collectionId?: string) {
     }
 
     try {
-      await IndexingService.processArticle(article.id, user.id, user);
+      await IndexingService.processArticle(article.id, user.id);
 
       if (job) {
         await prisma.job.update({

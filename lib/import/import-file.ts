@@ -199,7 +199,7 @@ export async function importFileForUser(params: {
           // Process sequentially to be safe, or Promise.all if we trust the API limit
           for (const article of createdArticles) {
             try {
-              await IndexingService.processArticle(article.id, userId, user);
+              await IndexingService.processArticle(article.id, userId);
               completed++;
 
               if (job && createdArticles.length > 0 && completed % 2 === 0) {

@@ -77,9 +77,9 @@ export default async function SessionPage({ params }: SessionPageProps) {
   const initialMessages = session.messages.map(m => ({
     id: m.id,
     role: m.role as 'user' | 'assistant',
-    content: m.content,
+    content: m.content || '',
     ui: m.ui || undefined,
-    sources: m.sources || undefined,
+    sources: Array.isArray(m.sources) ? m.sources as any[] : undefined,
     createdAt: m.createdAt.toISOString()
   }));
 
@@ -93,7 +93,7 @@ export default async function SessionPage({ params }: SessionPageProps) {
   return (
     <SessionClientPage 
       sessionId={sessionId}
-      sessionTitle={session.title}
+      sessionTitle={session.title || '新会话'}
       initialMessages={initialMessages}
       context={context}
       articles={articles}

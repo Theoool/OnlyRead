@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback, memo, RefObject } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Send, Command } from 'lucide-react';
 import { RenderEngine } from '@/app/components/learning/engine/RenderEngine';
@@ -400,7 +400,7 @@ export function CopilotWidget({
 
   // Scroll management
   useScrollToBottom(
-    mainRef,
+    mainRef as RefObject<HTMLElement>,
     [localMessages.length, currentResponse?.content?.length, isSending]
   );
 

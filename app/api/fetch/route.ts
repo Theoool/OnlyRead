@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       const extractor = new ContentExtractor();
       const adapted = extractWithAdapter(html, url);
 
-      const extracted = adapted.content && adapted.content.trim().length > 200
+      const extracted:any = adapted.content && adapted.content.trim().length > 200
         ? extractor.extractFromHtml(
             `<!doctype html><html><head><meta charset="utf-8"></head><body>${adapted.content}</body></html>`,
             url,
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
           )
         : extractor.extractFromHtml(html, url, { removeRecommendations: true });
 
-      const title = (adapted.title || extracted.title || fallbackTitle).trim() || fallbackTitle;
+      const title = (adapted.title  || fallbackTitle).trim() || fallbackTitle;
 
       return NextResponse.json({
         id,

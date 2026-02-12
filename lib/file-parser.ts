@@ -1,7 +1,16 @@
 import EPub from 'epub2';
 import TurndownService from 'turndown';
-// @ts-ignore
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+
+// 动态导入 pdfjs-dist 以避免服务端加载原生 canvas 模块
+// 只在实际需要解析 PDF 时才导入
+let pdfjsLib: typeof import('pdfjs-dist/legacy/build/pdf.js') | null = null;
+
+async function getPdfJs() {
+  if (!pdfjsLib) {
+    pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js');
+  }
+  return pdfjsLib;
+}
 
 // 条件导入Node.js模块 - 仅在服务端可用
 let fs: typeof import('fs/promises') | null = null;
@@ -153,9 +162,10 @@ export class FileParser {
    * Uses page-by-page extraction to create manageable chapters.
    */
   async parsePdf(fileBuffer: Buffer): Promise<ParsedBook> {
+    const pdfjs = await getPdfJs();
     const uint8Array = new Uint8Array(fileBuffer);
 
-    const loadingTask = pdfjsLib.getDocument({
+    const loadingTask = pdfjs.getDocument({
       data: uint8Array,
       isEvalSupported: false,
     });

@@ -53,7 +53,7 @@ export interface IGraphState {
 
   // Pedagogical UI Strategy (Phase 2)
   learningMode?: 'macro' | 'micro';
-  uiIntent?: 'text' | 'mindmap' | 'flashcard' | 'quiz' | 'fill_blank' | 'timeline' | 'comparison' | 'simulation' | 'code_sandbox' | 'summary';
+  uiIntent?: 'text' | 'explanation' | 'mindmap' | 'flashcard' | 'quiz' | 'fill_blank' | 'timeline' | 'comparison' | 'simulation' | 'code_sandbox' | 'summary';
   userConcepts?: string[];
 
   // Internal Processing
@@ -63,6 +63,8 @@ export interface IGraphState {
   reasoning?: string;
   finalResponse?: LearningResponse;
 }
+
+export type UIIntent = 'text' | 'explanation' | 'mindmap' | 'flashcard' | 'quiz' | 'fill_blank' | 'timeline' | 'comparison' | 'simulation' | 'code_sandbox' | 'summary';
 
 export const GraphState = {
   // Conversation History

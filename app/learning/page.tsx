@@ -64,7 +64,7 @@ export default async function LearningPage() {
 
   return (
     <LearningClientPage 
-      sessions={sessions} 
+      sessions={sessions as any} 
       articles={articles}
       collections={collections}
     />

@@ -10,7 +10,7 @@ export class IndexingService {
   /**
    * Process an article: Chunk it, generate embeddings, and save to DB
    */
-  static async processArticle(articleId: string, userId: string, user?: User | null) {
+  static async processArticle(articleId: string, userId: string,) {
 
     const article = await prisma.article.findUnique({
       where: { id: articleId },
@@ -79,7 +79,7 @@ export class IndexingService {
       console.log(`[Indexing] Article ${articleId}: Generating AI Summary...`);
      
      
-      const aiSummary = await this.generateSummary(content, user);
+      const aiSummary = await this.generateSummary(content, null);
       // --------------------------------
       console.log(`[Indexing] Article ${articleId}: AI Summary generated`, aiSummary);
  

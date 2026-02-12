@@ -67,7 +67,7 @@ class NoiseFilter {
   // 噪音选择器库（按类别分组）
   private static readonly NOISE_SELECTORS = {
     navigation: [
-      'nav', 'header', '.header', '.nav', '.navbar', '.menu', 
+      'nav', 'header', '.header', '.nav', '.navbar', '.menu',
       '.breadcrumb', '.breadcrumbs', '#nav', '#header', '.top-bar'
     ],
     sidebar: [
@@ -123,18 +123,18 @@ class NoiseFilter {
     { pattern: /(\d{1,2}分钟阅读|阅读\s*\d+|浏览\s*\d+)[^\n]*/g },
     { pattern: /(编辑：|作者：|来源：|原标题：)[^\n]*/g },
     { pattern: /(点击|戳|查看|访问)[^\n]{0,20}(原文|链接|这里|此处)[^\n]*/g },
-    
+
     // 英文噪音
     { pattern: /^(Related Articles?|Recommended|You May Also Like|More from)[：:]\s*/gim },
     { pattern: /(Share this|Follow us|Subscribe to|Sign up for)[^\n]*/gi },
     { pattern: /(Advertisement|Sponsored|Promoted|Partner Content)[^\n]*/gi },
     { pattern: /(Originally published|Updated on|Posted on)[^\n]*/gi },
     { pattern: /(Editor['']s note|About the author)[^\n]*/gi },
-    
+
     // 通用噪音
     { pattern: /\[?(Read more|Learn more|Continue reading|Click here)\]?[^\n]*/gi },
     { pattern: /\[?(Back to top|Scroll to top|Top)\]?[^\n]*/gi },
-    { pattern: /<!--.*?-->/gs },
+    { pattern: /<!--.*?-->/g },
     { pattern: /\[\s*(\d{1,2})\s*\]/g },
     { pattern: /^\s*Photo by\s+.*$/gim },
     { pattern: /^\s*Image:?\s*.*$/gim },
@@ -147,18 +147,18 @@ class NoiseFilter {
     customSelectors?: string[];
     siteSpecificRules?: Map<string, SiteRule>;
   } = {}): Document {
-    const { 
-      aggressive = false, 
+    const {
+      aggressive = false,
       preserveComments = false,
       preserveRelated = false,
       customSelectors = [],
-      siteSpecificRules 
+      siteSpecificRules
     } = options;
 
     // 站点特定规则
     const hostname = new URL(document.baseURI).hostname;
     const siteRule = siteSpecificRules?.get(hostname);
-    
+
     if (siteRule?.transform) {
       siteRule.transform(document);
     }
@@ -171,7 +171,7 @@ class NoiseFilter {
       customSelectors,
       siteRule
     });
-    
+
     this.removeNodes(document, selectorsToRemove);
 
     // 内容密度分析
@@ -252,19 +252,19 @@ class NoiseFilter {
     const hasTable = node.querySelector('table');
     const hasImage = node.querySelector('img');
     const textLength = node.textContent?.length || 0;
-    
-    return (hasCode || hasTable || hasImage) && textLength > 100;
+
+    return (hasCode || hasTable || hasImage)! && textLength > 100;
   }
 
   private removeLowDensityBlocks(document: Document) {
     const paragraphs = document.querySelectorAll('p, div');
-    
+
     paragraphs.forEach(p => {
       const text = p.textContent || '';
       const words = text.trim().split(/\s+/).length;
       const commas = (text.match(/,/g) || []).length;
       const tags = p.querySelectorAll('*').length;
-      
+
       if (words > 50 && commas < 2 && tags > words / 10) {
         if (!p.querySelector('img, code, pre, table, blockquote')) {
           p.remove();
@@ -281,7 +281,7 @@ class NoiseFilter {
       emptyNodes.forEach(node => {
         const isVoid = ['BR', 'HR', 'IMG', 'INPUT', 'META', 'LINK', 'AREA', 'BASE', 'COL', 'EMBED', 'PARAM', 'SOURCE', 'TRACK', 'WBR'].includes(node.tagName);
         const hasContent = node.textContent?.trim() || node.querySelector('img, video, iframe, canvas, svg');
-        
+
         if (!isVoid && !hasContent && node.parentElement) {
           node.remove();
           changed = true;
@@ -323,11 +323,11 @@ class NoiseFilter {
 class ParagraphOptimizer {
   optimize(document: Document): Document {
     const paragraphs = Array.from(document.querySelectorAll('p'));
-    
+
     for (let i = 0; i < paragraphs.length - 1; i++) {
       const current = paragraphs[i];
       const next = paragraphs[i + 1];
-      
+
       if (!current.parentElement || !next.parentElement) continue;
 
       const currentText = current.textContent?.trim() || '';
@@ -344,15 +344,15 @@ class ParagraphOptimizer {
   }
 
   private shouldMerge(current: string, next: string): boolean {
-    const hasOpenEnding = /[，：；,\-:;]$/.test(current) || 
-                         !/[.!?。！？]$/.test(current);
+    const hasOpenEnding = /[，：；,\-:;]$/.test(current) ||
+      !/[.!?。！？]$/.test(current);
     const nextStartsLower = /^[a-z\u4e00-\u9fa5]/.test(next);
     const isShort = current.length < 50 && next.length < 50;
     const currentEndsWithQuote = /["']$/.test(current);
     const nextStartsWithQuote = /^["']/.test(next);
 
-    return (hasOpenEnding && nextStartsLower && isShort) || 
-           (currentEndsWithQuote && nextStartsWithQuote);
+    return (hasOpenEnding && nextStartsLower && isShort) ||
+      (currentEndsWithQuote && nextStartsWithQuote);
   }
 }
 
@@ -375,7 +375,7 @@ export class ContentExtractor {
     this.paragraphOptimizer = new ParagraphOptimizer();
     this.cache = new Map();
     this.limit = pLimit(5);
-    
+
     this.turndown = new TurndownService({
       headingStyle: 'atx',
       codeBlockStyle: 'fenced',
@@ -386,7 +386,7 @@ export class ContentExtractor {
       linkStyle: 'inlined',
       fence: '```',
       br: '  \n',
-      blankReplacement: (content, node) => {
+      blankReplacement: (content, node:any) => {
         return node.isBlock ? '\n\n' : '';
       }
     });
@@ -401,25 +401,25 @@ export class ContentExtractor {
       filter: 'img',
       replacement: (content, node) => {
         const img = node as HTMLImageElement;
-        
-        const src = img.dataset.src || 
-                   img.dataset.original || 
-                   img.dataset.lazySrc || 
-                   img.src || '';
-        
+
+        const src = img.dataset.src ||
+          img.dataset.original ||
+          img.dataset.lazySrc ||
+          img.src || '';
+
         if (!src || src.startsWith('data:image') || src.startsWith('blob:')) {
           return '';
         }
 
         const alt = this.escapeMarkdown(img.alt || '');
         const title = img.title ? ` "${this.escapeMarkdown(img.title)}"` : '';
-        
+
         const width = img.width || img.dataset.width;
         const height = img.height || img.dataset.height;
         const sizeAttr = (width && height) ? ` =${width}x${height}` : '';
-        
+
         const finalSrc = this.resolveUrl(src, img.baseURI);
-        
+
         return `![${alt}](${finalSrc}${title}${sizeAttr})`;
       }
     });
@@ -438,13 +438,13 @@ export class ContentExtractor {
       replacement: (content, node) => {
         const table = node as HTMLTableElement;
         const hasSpan = table.querySelector('[colspan], [rowspan]');
-        
+
         let markdown = '\n\n' + this.turndown.turndown(content) + '\n\n';
-        
+
         if (hasSpan) {
           markdown += '> ⚠️ 原表格包含合并单元格，已转换为简化版本\n\n';
         }
-        
+
         return markdown;
       }
     });
@@ -455,25 +455,25 @@ export class ContentExtractor {
       replacement: (content, node) => {
         const pre = node as HTMLPreElement;
         const code = pre.querySelector('code');
-        
+
         let language = '';
         const className = code?.className || pre.className || '';
         const match = className.match(/language-(\w+)|lang-(\w+)|brush:\s*(\w+)/i);
         language = match?.[1] || match?.[2] || match?.[3] || '';
-        
+
         if (!language && code) {
-          language = code.dataset.language || 
-                    code.dataset.lang || 
-                    this.detectLanguageFromContent(code.textContent || '') || '';
+          language = code.dataset.language ||
+            code.dataset.lang ||
+            this.detectLanguageFromContent(code.textContent || '') || '';
         }
-        
+
         const codeContent = code?.textContent || content;
         const cleanedCode = codeContent
           .replace(/^\s*\d+[:.)]\s/gm, '')
           .replace(/^\s*\d+\s*\|\s/gm, '')
           .replace(/^\s*\d+\s+/, '')
           .replace(/[ \t]+$/gm, '');
-        
+
         return `\n\n\`\`\`${language}\n${cleanedCode.trim()}\n\`\`\`\n\n`;
       }
     });
@@ -485,11 +485,11 @@ export class ContentExtractor {
         const anchor = node as HTMLAnchorElement;
         let href = anchor.href || '';
         const title = anchor.title ? ` "${this.escapeMarkdown(anchor.title)}"` : '';
-        
+
         if (href.startsWith('javascript:') || href === '#' || !href) {
           return content;
         }
-        
+
         if (!href.startsWith('http') && !href.startsWith('#')) {
           try {
             href = new URL(href, anchor.baseURI).href;
@@ -497,26 +497,26 @@ export class ContentExtractor {
             // 保持原样
           }
         }
-        
+
         // 清理追踪参数
         if (href.startsWith('http')) {
           try {
             const url = new URL(href);
-            ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 
-             'fbclid', 'gclid', 'ttclid', 'si', 'feature'].forEach(param => {
-              url.searchParams.delete(param);
-            });
+            ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+              'fbclid', 'gclid', 'ttclid', 'si', 'feature'].forEach(param => {
+                url.searchParams.delete(param);
+              });
             href = url.toString();
           } catch {
             // URL 无效
           }
         }
-        
+
         const linkText = content.trim() || anchor.textContent?.trim() || '';
         if (!linkText || linkText === href) {
           return `<${href}>`;
         }
-        
+
         return `[${linkText}](${href}${title})`;
       }
     });
@@ -524,18 +524,18 @@ export class ContentExtractor {
     // 6. 数学公式
     this.turndown.addRule('mathFormulas', {
       filter: (node) => {
-        return node.nodeName === 'SPAN' && 
-               (node.className.includes('math') || 
-                node.className.includes('latex') ||
-                node.className.includes('katex') ||
-                node.className.includes('mathjax'));
+        return node.nodeName === 'SPAN' &&
+          (node.className.includes('math') ||
+            node.className.includes('latex') ||
+            node.className.includes('katex') ||
+            node.className.includes('mathjax'));
       },
       replacement: (content) => `$${content}$`
     });
 
     // 7. 删除线
     this.turndown.addRule('strikethrough', {
-      filter: ['del', 's', 'strike'],
+      filter: ['del', 's'],
       replacement: (content) => `~~${content}~~`
     });
 
@@ -544,7 +544,7 @@ export class ContentExtractor {
       filter: 'sup',
       replacement: (content) => `<sup>${content}</sup>`
     });
-    
+
     this.turndown.addRule('subscript', {
       filter: 'sub',
       replacement: (content) => `<sub>${content}</sub>`
@@ -556,45 +556,21 @@ export class ContentExtractor {
       replacement: (content, node) => {
         const bq = node as HTMLQuoteElement;
         const cite = bq.cite;
-        
+
         let markdown = content
           .split('\n')
           .map(line => line.trim() ? `> ${line}` : '>')
           .join('\n');
-        
+
         if (cite) {
           markdown += `\n> — <${cite}>`;
         }
-        
+
         return `\n\n${markdown}\n\n`;
       }
     });
 
-    // 10. 视频嵌入
-    this.turndown.addRule('videoEmbeds', {
-      filter: (node) => {
-        return node.nodeName === 'IFRAME' && 
-               (node.getAttribute('src')?.includes('youtube') ||
-                node.getAttribute('src')?.includes('vimeo') ||
-                node.getAttribute('src')?.includes('bilibili'));
-      },
-      replacement: (content, node) => {
-        const iframe = node as HTMLIFrameElement;
-        const src = iframe.src;
-        
-        if (src.includes('youtube')) {
-          const videoId = src.match(/embed\/([^?]+)/)?.[1];
-          return videoId ? `\n\n[![YouTube Video](https://img.youtube.com/vi/${videoId}/0.jpg)](https://www.youtube.com/watch?v=${videoId})\n\n` : '';
-        }
-        
-        if (src.includes('bilibili')) {
-          const bvid = src.match(/bvid=([^&]+)/)?.[1] || src.match(/BV\w+/)?.[0];
-          return bvid ? `\n\n[Bilibili Video](https://www.bilibili.com/video/${bvid})\n\n` : '';
-        }
-        
-        return `\n\n[Video](${src})\n\n`;
-      }
-    });
+ 
   }
 
   private detectLanguageFromContent(content: string): string {
@@ -697,8 +673,8 @@ export class ContentExtractor {
   }
 
   async extractFromHtml(
-    html: string, 
-    url: string, 
+    html: string,
+    url: string,
     options: Omit<ExtractionOptions, 'useJina' | 'cacheEnabled' | 'cacheTtl' | 'maxConcurrency'> = {}
   ): Promise<ExtractedContent> {
     const {
@@ -777,7 +753,7 @@ export class ContentExtractor {
 
   private async extractFromJina(url: string, options: ExtractionOptions): Promise<ExtractedContent> {
     const jinaUrl = `https://r.jina.ai/${url}`;
-    
+
     const response = await fetch(jinaUrl, {
       headers: {
         'Accept': 'text/markdown',
@@ -805,8 +781,8 @@ export class ContentExtractor {
 
     // 应用后处理
     markdown = this.noiseFilter.postProcessText(markdown);
-    markdown = this.postProcess(markdown, url, { 
-      removeRecommendations: options.removeRecommendations 
+    markdown = this.postProcess(markdown, url, {
+      removeRecommendations: options.removeRecommendations
     });
 
     const metadata = this.generateMetadata(markdown, { title, content: markdown }, 'jina');
@@ -913,8 +889,8 @@ export class ContentExtractor {
   }
 
   private generateMetadata(
-    markdown: string, 
-    article: any, 
+    markdown: string,
+    article: any,
     method: 'jina' | 'readability'
   ): ExtractedContent['metadata'] {
     const chineseChars = (markdown.match(/[\u4e00-\u9fa5]/g) || []).length;
@@ -1004,17 +980,17 @@ export class ContentExtractor {
   }
 
   async extractBatch(
-    urls: string[], 
+    urls: string[],
     options: ExtractionOptions & { onProgress?: (current: number, total: number) => void } = {}
   ): Promise<(ExtractedContent | Error)[]> {
     const { onProgress, ...extractOptions } = options;
     const limit = pLimit(options.maxConcurrency || 5);
-    
+
     let completed = 0;
     const total = urls.length;
 
     return Promise.all(
-      urls.map((url, index) => 
+      urls.map((url, index) =>
         limit(async () => {
           try {
             const result = await this.extractFromUrl(url, extractOptions);
@@ -1032,42 +1008,6 @@ export class ContentExtractor {
   }
 }
 
-// ============================================================================
-// 预定义的站点规则（示例）
-// ============================================================================
-
-export const defaultSiteRules: Map<string, SiteRule> = new Map([
-  ['zhihu.com', {
-    removeSelectors: ['.RichContent-actions', '.ContentItem-actions', '.VoteButton'],
-    contentCallback: (doc) => {
-      // 处理知乎公式
-      doc.querySelectorAll('.ztext-math').forEach(el => {
-        const tex = el.getAttribute('data-tex');
-        if (tex) el.textContent = `$${tex}$`;
-      });
-    }
-  }],
-  ['juejin.cn', {
-    removeSelectors: ['.article-suspended-panel', '.author-info-block', '.comment-box'],
-  }],
-  ['medium.com', {
-    removeSelectors: ['.meteredContent', '.js-postShareWidget', '.u-paddingBottom0'],
-  }],
-  ['mp.weixin.qq.com', {
-    removeSelectors: ['#js_profile_qrcode', '.rich_media_tool', '.reward_area'],
-    contentCallback: (doc) => {
-      // 处理微信图片
-      doc.querySelectorAll('img[data-src]').forEach(img => {
-        const dataSrc = img.getAttribute('data-src');
-        if (dataSrc) img.setAttribute('src', dataSrc);
-      });
-    }
-  }],
-  ['github.com', {
-    contentSelector: '.repository-content, .markdown-body',
-    removeSelectors: ['.file-header', '.BlobToolbar', '.js-permalink-shortcut'],
-  }],
-]);
 
 // ============================================================================
 // 导出默认实例
@@ -1075,7 +1015,3 @@ export const defaultSiteRules: Map<string, SiteRule> = new Map([
 
 export const contentExtractor = new ContentExtractor();
 
-// 设置默认站点规则
-defaultSiteRules.forEach((rule, domain) => {
-  // 使用方式：在 extractFromUrl 的 options 中传入 siteSpecificRules: defaultSiteRules
-});
