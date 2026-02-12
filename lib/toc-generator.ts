@@ -1,7 +1,17 @@
 /**
  * Table of Contents Generator
  * Extracts and structures headings from Markdown content
+ * 
+ * NOTE: This file now supports progressive migration to the new optimized version.
+ * The new version can be enabled via environment variables or runtime configuration.
  */
+
+import { generateTOCOptimized as newGenerateTOC, TOCResult } from './optimized/toc-generator';
+import { migrationManager } from './migration/core';
+
+// 运行时配置检查
+const useNewVersion = process.env.NEXT_PUBLIC_USE_NEW_TOC === 'true';
+const enableFallback = process.env.NEXT_PUBLIC_TOC_FALLBACK !== 'false';
 
 export interface TOCItem {
   id: string;
@@ -21,8 +31,51 @@ export interface TOCWithMetadata {
 
 /**
  * Generate Table of Contents from Markdown content
+ * This function now supports both old and new implementations
  */
 export function generateTOC(markdown: string): TOCWithMetadata {
+  // 检查是否启用新版本
+  if (useNewVersion) {
+    try {
+      // 使用新版本实现
+      const result = newGenerateTOC(markdown);
+      return convertNewToLegacy(result);
+    } catch (error) {
+      console.warn('新版本 TOC 生成失败，回退到旧版本:', error);
+      if (enableFallback) {
+        return generateTOCLegacy(markdown);
+      }
+      throw error;
+    }
+  }
+  
+  // 使用旧版本实现
+  return generateTOCLegacy(markdown);
+}
+
+// 新旧格式转换
+function convertNewToLegacy(result: TOCResult): TOCWithMetadata {
+  function convertItems(items: any[]): TOCItem[] {
+    return items.map((item, index) => ({
+      id: item.id,
+      title: item.title,
+      level: item.level,
+      children: item.children ? convertItems(item.children) : undefined,
+      startPosition: item.position || 0,
+      headingIndex: item.index || index
+    }));
+  }
+
+  return {
+    items: convertItems(result.items),
+    totalHeadings: result.metadata.totalItems,
+    maxLevel: result.metadata.maxDepth,
+    estimatedReadTime: result.metadata.estimatedReadingTime
+  };
+}
+
+// 原始实现（旧版本）
+function generateTOCLegacy(markdown: string): TOCWithMetadata {
   const items: TOCItem[] = [];
   const lines = markdown.split('\n');
   let currentPosition = 0;
@@ -157,4 +210,53 @@ export function generateSimpleTOC(markdown: string): Array<{
     index: item.headingIndex,
     flattenLevel: item.flattenLevel
   }));
+}
+
+// 运行时配置API
+export function enableNewTOCVersion() {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('useNewTOC', 'true');
+  }
+}
+
+export function disableNewTOCVersion() {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('useNewTOC', 'false');
+  }
+}
+
+export function isNewTOCVersionEnabled(): boolean {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('useNewTOC') === 'true';
+  }
+  return useNewVersion;
+}
+
+// 性能测试函数
+export async function benchmarkTOCGeneration(
+  markdown: string, 
+  iterations: number = 100
+): Promise<{ oldVersion: number; newVersion: number }> {
+  const results = { oldVersion: 0, newVersion: 0 };
+  
+  // 测试旧版本
+  const oldStart = performance.now();
+  for (let i = 0; i < iterations; i++) {
+    generateTOCLegacy(markdown);
+  }
+  results.oldVersion = (performance.now() - oldStart) / iterations;
+  
+  // 测试新版本
+  try {
+    const newStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      newGenerateTOC(markdown);
+    }
+    results.newVersion = (performance.now() - newStart) / iterations;
+  } catch (error) {
+    console.error('新版本测试失败:', error);
+    results.newVersion = -1; // 表示失败
+  }
+  
+  return results;
 }

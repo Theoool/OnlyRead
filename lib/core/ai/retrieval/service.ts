@@ -121,14 +121,21 @@ export class RetrievalService {
               select: { id: true, title: true, summary: true, domain: true }
           });
       } else if (filter?.articleIds && filter.articleIds.length > 0) {
-          articles = await prisma.article.findMany({
-            where: {
-              id: { in: filter.articleIds },
-              userId: userId,
-              deletedAt: null,
-            },
-            select: { id: true, title: true, summary: true, domain: true }
-          });
+          // Validate articleIds before querying
+          const validArticleIds = filter.articleIds.filter(id => 
+            typeof id === 'string' && this.isUuid(id)
+          );
+          
+          if (validArticleIds.length > 0) {
+            articles = await prisma.article.findMany({
+              where: {
+                id: { in: validArticleIds },
+                userId: userId,
+                deletedAt: null,
+              },
+              select: { id: true, title: true, summary: true, domain: true }
+            });
+          }
       }
 
       const sources: SearchResult[] = articles.map(a => ({
@@ -159,7 +166,23 @@ export class RetrievalService {
 ): Promise<RetrievalResult> {
   const queryVector = await generateEmbedding(query);
 
+  // Add extra validation for articleIds before using in SQL
+  let validatedFilter = filter;
   if (filter?.articleIds?.length) {
+    const validArticleIds = filter.articleIds.filter(id => 
+      typeof id === 'string' && this.isUuid(id)
+    );
+    
+    if (validArticleIds.length === 0) {
+      // No valid article IDs, fall back to general search
+      validatedFilter = { ...filter, articleIds: undefined };
+    } else if (validArticleIds.length !== filter.articleIds.length) {
+      // Some invalid IDs were filtered out
+      validatedFilter = { ...filter, articleIds: validArticleIds };
+    }
+  }
+
+  if (validatedFilter?.articleIds?.length) {
 
   const results = await prisma.$queryRaw<RetrievalRow[]>`
   SELECT c.id, c.content, a.id as "articleId", a.title, a.domain,
@@ -168,7 +191,7 @@ export class RetrievalService {
   JOIN articles a ON c.article_id = a.id
   WHERE c.user_id = ${userId}::uuid
     AND a.deleted_at IS NULL
-    AND c.article_id = ANY(${filter.articleIds}::uuid[])  -- 改这里
+    AND c.article_id = ANY(${validatedFilter.articleIds}::uuid[])  -- 改这里
   ORDER BY c.embedding <=> ${queryVector}::vector
   LIMIT ${topK};
 `;
@@ -210,6 +233,21 @@ export class RetrievalService {
       const trimmedQuery = query.trim();
       if (!trimmedQuery) {
         return { documents: "", sources: [] };
+      }
+
+      // Add extra validation for articleIds before using in SQL
+      if (filter?.articleIds?.length) {
+        const validArticleIds = filter.articleIds.filter(id => 
+          typeof id === 'string' && this.isUuid(id)
+        );
+        
+        if (validArticleIds.length === 0) {
+          // No valid article IDs, fall back to general search
+          filter = { ...filter, articleIds: undefined };
+        } else if (validArticleIds.length !== filter.articleIds.length) {
+          // Some invalid IDs were filtered out
+          filter = { ...filter, articleIds: validArticleIds };
+        }
       }
 
       if (filter?.articleIds?.length) {

@@ -87,6 +87,7 @@ function RemoteArticleReader({
     currentIndex,
     setCurrentIndex,
     isFinished,
+    setIsFinished,
     nextArticleId,
     prevArticleId,
     collection,
@@ -352,7 +353,10 @@ function RemoteArticleReader({
                       <div className="space-y-3">
                       {nextArticleId && (
                           <button
-                            onClick={() => router.replace(`/read?id=${nextArticleId}`)}
+                            onClick={() => {
+                              router.replace(`/read?id=${nextArticleId}`)
+                              setIsFinished(false)
+                            }}
                             className="w-full py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black rounded-xl font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                           >
                             下一章 <ChevronRight className="w-4 h-4" />

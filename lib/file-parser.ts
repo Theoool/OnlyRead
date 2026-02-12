@@ -2,9 +2,18 @@ import EPub from 'epub2';
 import TurndownService from 'turndown';
 // @ts-ignore
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
+
+// 条件导入Node.js模块 - 仅在服务端可用
+let fs: typeof import('fs/promises') | null = null;
+let path: typeof import('path') | null = null;
+let os: typeof import('os') | null = null;
+
+if (typeof window === 'undefined') {
+  // 服务端环境
+  fs = require('fs/promises');
+  path = require('path');
+  os = require('os');
+}
 
 export interface ParsedChapter {
   title: string;
@@ -27,6 +36,17 @@ export class FileParser {
     this.turndown = new TurndownService({
       headingStyle: 'atx',
       codeBlockStyle: 'fenced',
+      hr: '---',
+      bulletListMarker: '-',
+    });
+    
+    // 保留图片的自定义规则
+    this.turndown.addRule('images', {
+      filter: 'img',
+      replacement: (_, node) => {
+        const img = node as HTMLImageElement;
+        return `![${img.alt || ''}](${img.src || ''})`;
+      }
     });
   }
 
@@ -35,6 +55,11 @@ export class FileParser {
    * @param fileBuffer The buffer of the EPUB file
    */
   async parseEpub(fileBuffer: Buffer): Promise<ParsedBook> {
+    // 确保在服务端环境中运行
+    if (!fs || !path || !os) {
+      throw new Error('EPUB解析只能在服务端环境中运行');
+    }
+
     const tempDir = os.tmpdir();
     const tempFilePath = path.join(tempDir, `upload-${Date.now()}.epub`);
 
