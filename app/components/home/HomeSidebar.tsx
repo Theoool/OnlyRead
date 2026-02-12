@@ -19,6 +19,7 @@ import { useFileImport } from "@/lib/hooks/home/useFileImport";
 import { isUrl } from "@/lib/utils";
 import { SearchBar } from "@/app/components/SearchBar";
 import { QuickStats } from "./QuickStats";
+import { useIsMobile } from "@/lib/hooks/use-device";
 
 interface HomeSidebarProps {
   onSuccess?: (mode: 'articles' | 'collections') => void;
@@ -26,6 +27,7 @@ interface HomeSidebarProps {
 
 export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const { isAuthenticated, user, logout, isLoading: isAuthLoading } = useAuthStore();
   const [value, setValue] = useState("");
   const [isDragging, setIsDragging] = useState(false);
@@ -119,7 +121,7 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
   return (
     <section 
       className={twMerge(
-        "w-full md:w-1/2 lg:w-[55%] flex flex-col p-6 md:p-12 relative z-10 bg-white dark:bg-black border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 transition-colors duration-200",
+        "w-full md:w-1/2 lg:w-[55%] flex flex-col p-4 md:p-12 relative z-10 bg-white dark:bg-black border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 transition-colors duration-200",
         isDragging ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500 dark:border-blue-500" : ""
       )}
       onDragOver={onDragOver}
@@ -137,9 +139,9 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
       <motion.header
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-6 flex items-center justify-between"
+        className="mb-4 md:mb-6 flex items-center justify-between"
       >
-        <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
+        <h1 className="text-lg md:text-xl font-bold tracking-tight flex items-center gap-2">
           <span className="w-2 h-2 bg-black dark:bg-white rounded-full inline-block"/>
           阅读
         </h1>
@@ -241,7 +243,7 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
         >
           <textarea
             ref={textareaRef}
-            className="w-full h-[30vh] md:h-[40vh] bg-transparent text-2xl md:text-4xl font-mono leading-tight outline-none resize-none placeholder:text-zinc-200 dark:placeholder:text-zinc-800"
+            className="w-full h-[35vh] md:h-[40vh] bg-transparent text-xl md:text-4xl font-mono leading-tight outline-none resize-none placeholder:text-zinc-200 dark:placeholder:text-zinc-800"
             placeholder="你想阅读什么？"
             value={value}
             onChange={(e) => setValue(e.target.value)}
@@ -292,10 +294,10 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => fileInputRef.current?.click()}
-                    className="h-8 px-3 rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-500 text-xs font-mono flex items-center gap-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+                    className="h-10 px-4 md:h-8 md:px-3 rounded-lg md:rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-500 text-sm md:text-xs font-mono flex items-center gap-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors touch-manipulation"
                   >
-                    <FileText className="w-3 h-3" />
-                    导入
+                    <FileText className="w-4 h-4 md:w-3 md:h-3" />
+                    <span className="md:hidden">导入文件</span>
                   </motion.button>
 
                   <motion.button
@@ -304,10 +306,10 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handlePasteClick}
-                    className="h-8 px-3 rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-500 text-xs font-mono flex items-center gap-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+                    className="h-10 px-4 md:h-8 md:px-3 rounded-lg md:rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-500 text-sm md:text-xs font-mono flex items-center gap-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors touch-manipulation"
                   >
-                    <Clipboard className="w-3 h-3" />
-                    粘贴
+                    <Clipboard className="w-4 h-4 md:w-3 md:h-3" />
+                    <span className="md:hidden">粘贴</span>
                   </motion.button>
                 </>
               )}
@@ -315,7 +317,7 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
               <button
                 onClick={handleSubmit}
                 disabled={!value || loading}
-                className="h-10 w-10 md:w-auto md:px-4 rounded-full md:rounded-lg bg-black dark:bg-white text-white dark:text-black disabled:opacity-0 transition-all flex items-center justify-center gap-2 group"
+                className="h-12 w-12 md:h-10 md:w-auto md:px-4 rounded-full md:rounded-lg bg-black dark:bg-white text-white dark:text-black disabled:opacity-0 transition-all flex items-center justify-center gap-2 group touch-manipulation"
               >
                 {loading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -335,7 +337,7 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1, duration: 1 }}
-        className="fixed bottom-6 text-[10px] text-zinc-400 dark:text-zinc-600 font-mono select-none pointer-events-none"
+        className="fixed bottom-4 md:bottom-6 text-[10px] text-zinc-400 dark:text-zinc-600 font-mono select-none pointer-events-none hidden md:block"
       >
         ESC 退出后 · 可随时继续阅读
       </motion.footer>

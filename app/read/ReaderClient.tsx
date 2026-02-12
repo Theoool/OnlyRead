@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { Check, ChevronRight, List, Loader2 } from "lucide-react";
+import { Check, ChevronRight, List, Loader2, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 import type { Article } from "@/lib/core/reading/articles.service";
@@ -24,6 +24,7 @@ import { ConceptHud } from "@/app/components/ConceptHud";
 // Hooks
 import { useReadingLogic } from "./hooks/useReadingLogic";
 import { useConceptStore, ConceptData } from "@/lib/store/useConceptStore";
+import { useIsMobile } from "@/lib/hooks/use-device";
 import dynamic from "next/dynamic";
 
 // Dynamic Imports removed as we are unifying to ReaderView
@@ -68,6 +69,7 @@ function RemoteArticleReader({
   initialCollection?: Collection;
 }) {
   const router = useRouter();
+  const isMobile = useIsMobile();
 
   const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
   const [aiInitialMessage, setAiInitialMessage] = useState<string | undefined>(undefined);
@@ -189,7 +191,10 @@ function RemoteArticleReader({
             <>
             
               {/* Floating TOC Toggle for Book Mode */}
-              <div className="fixed top-3 right-6 z-50 flex items-center gap-3">
+              <div className={twMerge(
+                "fixed z-50 flex items-center gap-3",
+                isMobile ? "top-2 right-2" : "top-3 right-6"
+              )}>
                 <motion.button
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -266,9 +271,17 @@ function RemoteArticleReader({
                     initial={{ opacity: 0, x: 16 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 16 }}
-                    className="fixed top-[76px] right-6 md:right-12 z-50 w-[280px] max-h-[70vh] pointer-events-auto"
+                    className={twMerge(
+                      "fixed z-50 pointer-events-auto",
+                      isMobile 
+                        ? "inset-2" 
+                        : "top-[76px] right-6 md:right-12 w-[280px] max-h-[70vh]"
+                    )}
                   >
-                    <div className="bg-white/90 dark:bg-black/90 backdrop-blur-md rounded-2xl shadow-lg border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden">
+                    <div className={twMerge(
+                      "bg-white/90 dark:bg-black/90 backdrop-blur-md rounded-2xl shadow-lg border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden",
+                      isMobile ? "h-full" : ""
+                    )}>
                       <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200/50 dark:border-zinc-800/50">
                         <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
                           目录
@@ -281,7 +294,10 @@ function RemoteArticleReader({
                           关闭
                         </button>
                       </div>
-                      <div className="max-h-[calc(70vh-44px)] overflow-y-auto no-scrollbar p-2">
+                      <div className={twMerge(
+                        "overflow-y-auto no-scrollbar p-2",
+                        isMobile ? "max-h-[calc(100%-44px)]" : "max-h-[calc(70vh-44px)]"
+                      )}>
                         {tocItems.map((item, i) => (
                           <button
                             key={`${item.index}-${i}`}
@@ -340,14 +356,14 @@ function RemoteArticleReader({
                 <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="fixed inset-0 z-[100] flex items-center justify-center bg-white/80 dark:bg-black/80 backdrop-blur-xl"
+                className="fixed inset-0 z-[100] flex items-center justify-center bg-white/80 dark:bg-black/80 backdrop-blur-xl p-4"
               >
-                <div className="bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-2xl border border-zinc-100 dark:border-zinc-800 max-w-sm w-full text-center">
-                    <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <Check className="w-8 h-8 text-zinc-900 dark:text-zinc-100" />
+                <div className="bg-white dark:bg-zinc-900 p-6 md:p-8 rounded-2xl shadow-2xl border border-zinc-100 dark:border-zinc-800 max-w-sm w-full text-center">
+                    <div className="w-12 h-12 md:w-16 md:h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6">
+                        <Check className="w-6 h-6 md:w-8 md:h-8 text-zinc-900 dark:text-zinc-100" />
                     </div>
-                    <h2 className="text-2xl font-serif font-medium mb-2">阅读完成</h2>
-                    <p className="text-zinc-500 dark:text-zinc-400 mb-8">
+                    <h2 className="text-xl md:text-2xl font-serif font-medium mb-2">阅读完成</h2>
+                    <p className="text-zinc-500 dark:text-zinc-400 mb-6 md:mb-8 text-sm md:text-base">
                         你已经完成了这次深度阅读。
                     </p>
                       <div className="space-y-3">
@@ -357,12 +373,12 @@ function RemoteArticleReader({
                               router.replace(`/read?id=${nextArticleId}`)
                               setIsFinished(false)
                             }}
-                            className="w-full py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black rounded-xl font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                            className="w-full py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black rounded-xl font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2 touch-manipulation"
                           >
                             下一章 <ChevronRight className="w-4 h-4" />
                           </button>
                       )}
-                      <button onClick={() => router.replace("/")} className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl font-medium hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
+                      <button onClick={() => router.replace("/")} className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl font-medium hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors touch-manipulation">
                         返回首页
                       </button>
                       </div>

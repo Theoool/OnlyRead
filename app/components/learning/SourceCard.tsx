@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 interface Source {
   title: string;
-  articleId: string;
+  articleId?: string;
   url?: string;
   similarity?: number;
 }
@@ -22,9 +22,12 @@ export function SourceList({ sources }: SourceListProps) {
         Sources
       </div>
       <div className="flex flex-wrap gap-2">
-        {sources.map((source, idx) => (
+        {sources.slice(0,5).map((source, idx) => (
           <SourceCard key={`${source.articleId}-${idx}`} source={source} index={idx + 1} />
         ))}
+       {sources.length&&<SourceCard  source={{title:"更多参考"}} index={sources.length-5}></SourceCard>}
+        
+       
       </div>
     </div>
   );

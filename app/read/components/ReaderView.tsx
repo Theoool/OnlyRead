@@ -259,7 +259,7 @@ export function ReaderView({
       ref={containerRef}
       className="flex-1 relative overflow-y-auto flex flex-col items-center z-10 scroll-smooth no-scrollbar"
     >
-      <div className="w-full max-w-3xl px-8 py-[40vh] flex flex-col gap-10">
+      <div className="w-full max-w-3xl px-4 md:px-8 py-[30vh] md:py-[40vh] flex flex-col gap-6 md:gap-10">
         {sentences.map((sentence, index) => {
           if (index < renderStartIndex || index > renderEndIndex) {
             return null;
@@ -295,7 +295,7 @@ export function ReaderView({
               {articleType === "markdown" ? (
                 <div
                   className={twMerge(
-                    "text-lg md:text-xl leading-relaxed text-zinc-800 dark:text-zinc-200 transition-colors duration-300 font-serif",
+                    "text-base md:text-lg leading-relaxed text-zinc-800 dark:text-zinc-200 transition-colors duration-300 font-serif",
                     isCurrent ? "opacity-100" : "opacity-50"
                   )}
                 >
@@ -310,7 +310,7 @@ export function ReaderView({
               ) : (
                 <p
                   className={twMerge(
-                    "text-xl md:text-3xl leading-relaxed font-serif tracking-wide transition-colors duration-300",
+                    "text-lg md:text-3xl leading-relaxed font-serif tracking-wide transition-colors duration-300",
                     isCurrent
                       ? "text-zinc-900 dark:text-zinc-50"
                       : "text-zinc-300 dark:text-zinc-700"

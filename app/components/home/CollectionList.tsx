@@ -53,6 +53,7 @@ export function CollectionList({ collections, isLoading }: CollectionListProps) 
                 toggleCollection(collection.id);
               }}
             >
+             
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-zinc-100 dark:bg-zinc-900 rounded text-zinc-500">
                         <Book className="w-4 h-4" />
@@ -68,7 +69,7 @@ export function CollectionList({ collections, isLoading }: CollectionListProps) 
                 </div>
                 <div className="flex items-center gap-2">
                     {/* Local Reading Mode Toggle */}
-                    {collection.hasLocalCopy && !collection.isLocal && (
+                    {!collection.isLocal && (
                          <button
                             onClick={(e) => {
                                 e.stopPropagation();
