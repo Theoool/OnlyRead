@@ -20,6 +20,7 @@ import { isUrl } from "@/lib/utils";
 import { SearchBar } from "@/app/components/SearchBar";
 import { QuickStats } from "./QuickStats";
 import { useIsMobile } from "@/lib/hooks/use-device";
+import { useImportManager } from "@/lib/hooks/home/useImportManager";
 
 interface HomeSidebarProps {
   onSuccess?: (mode: 'articles' | 'collections') => void;
@@ -35,23 +36,25 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { 
-    handleFile, 
-    handleUrlImport, 
-    handleTextPaste, 
-    loading, 
-    error,
-    setError 
-  } = useFileImport({ 
+    importFile, 
+    importFromUrl, 
+    importFromText, 
+    state,
+    isLoading,
+    error: importError,
+  } = useImportManager({ 
     userId: user?.id, 
-    onSuccess: (mode) => {
+    onSuccess: (result) => {
       setValue("");
-      onSuccess?.(mode);
+      onSuccess?.(result.mode);
     },
     onLocalReady: (localId) => {
       // 【本地优先】文件存入 IndexedDB 后立即跳转阅读
       router.push(`/read?localId=${localId}`);
     }
   });
+
+  const [error, setError] = useState("");
 
   const isInputUrl = isUrl(value);
 
@@ -75,14 +78,14 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
     setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-      handleFile(files[0]);
+      importFile(files[0]);
     }
   };
 
   const onFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      handleFile(files[0]);
+      importFile(files[0]);
     }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -103,12 +106,12 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
 
   const handleSubmit = async () => {
     const input = value.trim();
-    if (!input || loading) return;
+    if (!input || isLoading) return;
 
     if (isUrl(input)) {
-      await handleUrlImport(input);
+      await importFromUrl(input);
     } else {
-      await handleTextPaste(input);
+      await importFromText(input);
     }
   };
 
@@ -275,7 +278,7 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={loading}
+            disabled={isLoading}
             spellCheck={false}
           />
           
@@ -301,7 +304,7 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
               
               {/* Error Message */}
               <AnimatePresence>
-                {error && (
+                {(error || importError) && (
                   <motion.div
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -312,7 +315,24 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
                     )}
                   >
                     <AlertCircle className="w-3 h-3 flex-shrink-0" />
-                    <span className="truncate max-w-[150px] md:max-w-none">{error}</span>
+                    <span className="truncate max-w-[150px] md:max-w-none">{error || importError}</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              
+              {/* Progress Message */}
+              <AnimatePresence>
+                {state.message && state.status !== 'idle' && state.status !== 'error' && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    className={twMerge(
+                      "flex items-center gap-2 text-blue-500 font-mono bg-blue-50 dark:bg-blue-900/20 rounded",
+                      isMobile ? "text-xs px-2.5 py-1.5" : "text-xs px-2 py-1"
+                    )}
+                  >
+                    <span>{state.message} ({state.progress}%)</span>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -355,13 +375,13 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
               
               <button
                 onClick={handleSubmit}
-                disabled={!value || loading}
+                disabled={!value || isLoading}
                 className={twMerge(
                   "bg-black dark:bg-white text-white dark:text-black disabled:opacity-0 transition-all flex items-center justify-center gap-2 group active:scale-95 touch-manipulation",
                   isMobile ? "min-w-[56px] min-h-[56px] rounded-full" : "h-10 w-auto px-4 rounded-lg"
                 )}
               >
-                {loading ? (
+                {isLoading ? (
                   <Loader2 className={twMerge(isMobile ? "w-6 h-6" : "w-5 h-5", "animate-spin")} />
                 ) : (
                   <>

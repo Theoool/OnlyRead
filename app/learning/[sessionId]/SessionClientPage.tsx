@@ -7,11 +7,11 @@ import {
   ArrowLeft, 
   PanelLeftClose, 
   PanelLeftOpen, 
-  MoreVertical,
+MoreVertical,
   Trash2,
   Edit3
 } from 'lucide-react';
-import { CopilotWidget } from '@/app/components/ai/CopilotWidget';
+import { CopilotWidget } from '@/app/components/ai/CopilotWidgetV2';
 import { ContextSelector } from '@/app/components/ai/ContextSelector';
 import { Message } from '@/app/components/ai/useCopilot';
 

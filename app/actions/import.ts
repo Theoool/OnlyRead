@@ -1,7 +1,7 @@
 'use server';
 
 import { requireUser } from './utils';
-import { ContentExtractor } from '@/lib/content-extractor';
+import { extractFromUrl } from '@/lib/content-extraction/server';
 import { prisma } from '@/lib/infrastructure/database/prisma';
 import { IndexingService } from '@/lib/core/indexing/service';
 import { importFileForUser } from '@/lib/import/import-file';
@@ -9,7 +9,7 @@ import { revalidatePath } from 'next/cache';
 
 export async function importUrl(url: string, collectionId?: string) {
   const user = await requireUser();
-
+  
   if (!url) {
     throw new Error('Missing URL');
   }
@@ -24,10 +24,13 @@ export async function importUrl(url: string, collectionId?: string) {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const validCollectionId = collectionId && uuidRegex.test(collectionId) ? collectionId : null;
 
-  const extractor = new ContentExtractor();
-
-  // Use Jina by default
-  const extracted = await extractor.extractFromUrl(url, { useJina: true });
+  // Use Jina by default with enhanced options
+  const extracted = await extractFromUrl(url, { 
+    useJina: true,
+    aggressiveNoiseRemoval: true,
+    removeRecommendations: true,
+    cacheEnabled: true,
+  });
 
   const domain = new URL(url).hostname;
 

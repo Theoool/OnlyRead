@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
-import { ContentExtractor } from "@/lib/content-extractor";
+import { extractFromHtml } from "@/lib/content-extraction/server";
 import { extractWithAdapter } from "@/lib/site-adapters";
 
 export async function POST(req: Request) {
@@ -54,18 +54,26 @@ export async function POST(req: Request) {
     
     const id = `url-${Date.now()}`;
     try {
-      const extractor = new ContentExtractor();
+      // 使用新的提取系统
       const adapted = extractWithAdapter(html, url);
 
-      const extracted:any = adapted.content && adapted.content.trim().length > 200
-        ? extractor.extractFromHtml(
+      const extracted = adapted.content && adapted.content.trim().length > 200
+        ? await extractFromHtml(
             `<!doctype html><html><head><meta charset="utf-8"></head><body>${adapted.content}</body></html>`,
             url,
-            { removeRecommendations: true }
+            { 
+              removeRecommendations: true,
+              aggressiveNoiseRemoval: true,
+              cacheEnabled: true,
+            }
           )
-        : extractor.extractFromHtml(html, url, { removeRecommendations: true });
+        : await extractFromHtml(html, url, { 
+            removeRecommendations: true,
+            aggressiveNoiseRemoval: true,
+            cacheEnabled: true,
+          });
 
-      const title = (adapted.title  || fallbackTitle).trim() || fallbackTitle;
+      const title = (adapted.title || extracted.title || fallbackTitle).trim();
 
       return NextResponse.json({
         id,
@@ -77,7 +85,8 @@ export async function POST(req: Request) {
         metadata: extracted.metadata,
         adapterName: adapted.adapterName,
       });
-    } catch {
+    } catch (error) {
+      console.error('提取失败，使用降级方案:', error);
       const turndownService = new TurndownService({
         headingStyle: "atx",
         codeBlockStyle: "fenced",
@@ -104,9 +113,11 @@ export async function POST(req: Request) {
         url,
         content: markdown,
         type: "markdown",
+        adapterName: "fallback",
       });
     }
   } catch (err) {
+    console.error('服务异常:', err);
     return NextResponse.json(
       { error: "服务异常" },
       { status: 500 }

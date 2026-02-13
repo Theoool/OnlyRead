@@ -12,7 +12,7 @@ import { twMerge } from 'tailwind-merge';
 import { EpubView } from 'react-reader';
 import { SimpleReaderHeader } from "./components/SimpleReaderHeader";
 import { ReaderFooter } from "./components/ReaderFooter";
-import { AISidebar } from "@/app/components/ai/AISidebar";
+import { AISidebarEphemeral as AISidebar } from "@/app/components/ai/AISidebarEphemeral";
 
 interface EpubReaderProps {
   book: LocalBook;

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Check, ChevronRight, List, Loader2, X } from "lucide-react";
@@ -17,8 +17,8 @@ import { ReaderFooter } from "./components/ReaderFooter";
 import { ChapterNavigator } from "@/app/components/book/ChapterNavigator";
 import { ChapterListSidebar } from "@/app/components/book/ChapterListSidebar";
 import { ConceptCard } from "@/app/components/ConceptCard";
-import { SelectionToolbar } from "@/app/components/SelectionToolbar";
-import { AISidebar } from "@/app/components/ai/AISidebar";
+import { SelectionToolbarV2 } from "@/app/components/SelectionToolbarV2";
+import { AISidebarEphemeral } from "@/app/components/ai/AISidebarEphemeral";
 import { ConceptHud } from "@/app/components/ConceptHud";
 
 // Hooks
@@ -77,11 +77,11 @@ function RemoteArticleReader({
 
   const handleAiToggle = () => setIsAiSidebarOpen((v) => !v);
 
-  const handleAskAi = (text: string) => {
+  const handleAskAi = useCallback((text: string) => {
     setAiSelection(text);
-    setAiInitialMessage(`解释这段内容：\n\n${text}`);
+    setAiInitialMessage(text);
     setIsAiSidebarOpen(true);
-  };
+  }, []);
 
   const {
     article,
@@ -191,9 +191,9 @@ function RemoteArticleReader({
   const progress = sentences.length > 0 ? ((currentIndex + 1) / sentences.length) * 100 : 0;
 
   return (
-    <div className="h-screen w-full bg-[#FAFAFA] dark:bg-black text-zinc-900 dark:text-zinc-50 font-sans overflow-hidden flex flex-row selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black relative">
+    <div className="h-screen w-full overflow-clip  bg-[#FAFAFA] dark:bg-black text-zinc-900 dark:text-zinc-50 font-sans  flex flex-row selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black relative">
        
-      <div className="flex-1 flex flex-col min-w-0 relative h-full">
+      <div className="flex-1 overflow-hidden flex flex-col min-w-0 relative h-screen">
           {/* Noise Texture */}
           <div className="absolute inset-0 opacity-[0.015] pointer-events-none z-0 mix-blend-multiply dark:mix-blend-overlay"
             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}
@@ -354,7 +354,7 @@ function RemoteArticleReader({
             )}
           </AnimatePresence>
           
-          <SelectionToolbar 
+          <SelectionToolbarV2
             onActivate={(text, rect) => {
                 const saved = concepts[text];
                 if (saved) {
@@ -409,7 +409,7 @@ function RemoteArticleReader({
                           </button>
                       )}
                       <button 
-                        onClick={() => router.replace("/")} 
+                        onClick={() => router.back()} 
                         className="w-full min-h-[48px] md:min-h-[44px] py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl md:rounded-xl font-medium hover:bg-zinc-200 dark:hover:bg-zinc-700 active:scale-98 transition-all touch-manipulation text-base md:text-sm"
                       >
                         返回首页
@@ -421,7 +421,7 @@ function RemoteArticleReader({
           </AnimatePresence>
       </div>
 
-      <AISidebar 
+      <AISidebarEphemeral 
           isOpen={isAiSidebarOpen} 
           onClose={() => {
             setIsAiSidebarOpen(false)
@@ -429,8 +429,8 @@ function RemoteArticleReader({
             setAiSelection(undefined)
           }}
           context={{ 
-              articleIds: [activeArticle.id],
-              collectionId: effectiveCollection?.id,
+              articleContent: activeArticle.content,
+              articleTitle: activeArticle.title,
               selection: aiSelection,
               currentContent: currentContextText
           }}

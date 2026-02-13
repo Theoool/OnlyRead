@@ -79,9 +79,6 @@ export class IndexingService {
       console.log(`[Indexing] Article ${articleId}: Generating AI Summary...`);
      
      
-      const aiSummary = await this.generateSummary(content, null);
-      // --------------------------------
-      console.log(`[Indexing] Article ${articleId}: AI Summary generated`, aiSummary);
  
       // Update stats
       await prisma.article.update({
@@ -89,7 +86,7 @@ export class IndexingService {
         data: {
           totalBlocks: totalBlocks,
           totalReadingTime: totalReadingTime,
-          summary: aiSummary, // Save the generated summary
+          
         }
       });
 

@@ -271,33 +271,60 @@ model LearningSession {
   id               String            @id @default(uuid()) @db.Uuid
   userId           String            @map("user_id") @db.Uuid
   title            String?           @db.VarChar(255)
+  type             SessionType       @default(LEARNING)
+  status           SessionStatus     @default(ACTIVE)
+  mode             ModeType          @default(TUTOR)
   context          Json?             @default("{}")
   summary          String?
   summaryUpdatedAt DateTime?         @map("summary_updated_at")
-  messageCount     Int               @default(0) @map("message_count")
+  lastActivityAt   DateTime          @default(now()) @map("last_activity_at")
   createdAt        DateTime          @default(now()) @map("created_at")
   updatedAt        DateTime          @updatedAt @map("updated_at")
   messages         LearningMessage[]
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([userId, updatedAt(sort: Desc)])
+  @@index([userId, status, lastActivityAt(sort: Desc)])
+  @@index([userId, type, status])
   @@map("learning_sessions")
 }
 
 model LearningMessage {
   id        String          @id @default(uuid()) @db.Uuid
   sessionId String          @map("session_id") @db.Uuid
-  role      String          @db.VarChar(50)
+  role      MessageRole
   content   String?
   ui        Json?
   sources   Json?
+  metadata  Json?           @default("{}")
   createdAt DateTime        @default(now()) @map("created_at")
   session   LearningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
-  @@index([sessionId])
   @@index([sessionId, createdAt])
   @@map("learning_messages")
+}
+
+enum SessionType {
+  LEARNING
+  COPILOT
+  QA
+}
+
+enum SessionStatus {
+  ACTIVE
+  ARCHIVED
+  COMPLETED
+}
+
+enum ModeType {
+  QA
+  TUTOR
+  COPILOT
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
 }
 
 enum JobType {
