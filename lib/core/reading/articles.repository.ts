@@ -77,8 +77,7 @@ export class ArticlesRepository {
 
 
   static async findById(id: string, userId: string, options?: { withContent?: boolean }) {
-    const { withContent = false } = options || {};
-
+ 
     const article = await prisma.article.findFirst({
       where: {
         id,

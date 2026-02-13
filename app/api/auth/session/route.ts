@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
   try {
-  
     const supabase = await createClient()
 
     const {
@@ -11,7 +10,15 @@ export async function GET(req: Request) {
       error,
     } = await supabase.auth.getSession()
 
-  
+    console.log('=== Session API Debug ===')
+    console.log('Request URL:', req.url)
+    console.log('Session error:', error)
+    console.log('Session exists:', !!session)
+    if (session?.user) {
+      console.log('User ID:', session.user.id)
+      console.log('User email:', session.user.email)
+    }
+
     if (error) {
       console.error('Session API error:', error)
       return NextResponse.json(
@@ -45,6 +52,6 @@ export async function GET(req: Request) {
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
-    )
+      )
   }
 }

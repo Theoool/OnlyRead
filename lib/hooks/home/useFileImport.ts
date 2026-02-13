@@ -58,8 +58,13 @@ export function useFileImport({ userId, onSuccess, onLocalReady }: UseFileImport
       onLocalReady?.(localId);
       toast.success("文件已就绪", { description: "正在打开阅读器..." });
 
-      // 4. 【后台同步】静默上传到云端
-      performBackgroundUpload(file, localId, userId);
+      // 4. 【后台同步】静默上传到云端（不阻塞用户）
+      performBackgroundUpload(file, localId, userId).catch(err => {
+        console.error('Background upload failed:', err);
+      });
+
+      // 本地保存成功后立即结束加载状态
+      setLoading(false);
 
     } catch (err: any) {
       console.error('File handling error:', err);
@@ -91,19 +96,15 @@ export function useFileImport({ userId, onSuccess, onLocalReady }: UseFileImport
         queryClient.invalidateQueries({ queryKey: ['collections'] })
       ]);
 
-      // 静默通知用户同步完成
+      // 静默通知用户同步完成（不调用 onSuccess，因为用户已经跳转）
       if (result.cloudCollectionId) {
-        onSuccess?.('collections');
         toast.success("已同步到云端", { description: "AI 功能已就绪" });
       } else {
-        onSuccess?.('articles');
         toast.success("已同步到云端");
       }
     } else {
       toast.error("云端同步失败", { description: result.error });
     }
-
-    setLoading(false);
   };
 
   const handleUrlImport = useCallback(async (url: string) => {

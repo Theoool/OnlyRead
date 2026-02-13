@@ -98,6 +98,7 @@ export async function GET(req: Request) {
   // Copy cookies from our store (which has the new session cookies) to the response
   // This is crucial because createServerClient updated the cookieStore, but we need to pass those to the browser
   const newCookies = cookieStore.getAll()
+  console.log('Setting cookies on response:', newCookies.map(c => c.name))
   newCookies.forEach(cookie => {
     response.cookies.set(cookie.name, cookie.value, cookie)
   })

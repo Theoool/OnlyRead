@@ -10,14 +10,18 @@ export default async function Page() {
   
   const { data: { user } } = await supabase.auth.getUser();
 
+    
+  
+  
   if (!user) {
+    
     return <ClientHome />;
   }
-
   const [articlesResult, collections] = await Promise.all([
     ArticlesRepository.findAll(user.id, { page: 1, pageSize: 20 }),
     CollectionsRepository.findAll(user.id)
   ]);
+  
 
   return (
     <ClientHome 

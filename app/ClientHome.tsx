@@ -33,9 +33,14 @@ export default function ClientHome({ initialArticles, initialCollections }: Clie
     totalCollectionsCount
   } = useHomeData({ initialArticles, initialCollections });
 
-  // Initial Data Load
+  // Initial Data Load with debouncing
   useEffect(() => {
-    fetchSession();
+    // 添加防抖逻辑，避免频繁检查
+    const timer = setTimeout(() => {
+      fetchSession();
+    }, 100);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {

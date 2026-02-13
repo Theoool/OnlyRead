@@ -15,6 +15,9 @@ export class APIError extends Error {
   }
 }
 
+// 防止频繁重定向的节流变量
+let redirectTimeout: NodeJS.Timeout | null = null;
+
 /**
  * Wrapper for fetch API with unified error handling
  */
@@ -32,10 +35,18 @@ export async function apiRequest<T>(
       },
     })
 
-    // Handle 401 Unauthorized - redirect to login
+    // Handle 401 Unauthorized - redirect to login with debouncing
     if (response.status === 401) {
       if (typeof window !== 'undefined') {
-        window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname)
+        // 清除之前的定时器
+        if (redirectTimeout) {
+          clearTimeout(redirectTimeout);
+        }
+        
+        // 设置新的重定向定时器（防抖）
+        redirectTimeout = setTimeout(() => {
+          window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
+        }, 100); // 100ms 防抖延迟
       }
       throw new APIError('Unauthorized. Please login.', 'UNAUTHORIZED', 401)
     }

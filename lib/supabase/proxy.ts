@@ -52,7 +52,10 @@ export async function updateSession(request: NextRequest) {
   })
 
   // OAuth Callback 特殊处理（保持原有逻辑）
-  if (request.nextUrl.pathname === '/auth/callback') {
+  if
+  
+  
+  (request.nextUrl.pathname === '/auth/callback') {
     console.log('=== Middleware OAuth Callback ===')
     const { data: sessionData } = await supabase.auth.getSession()
     

@@ -46,7 +46,23 @@ export function ReaderView({
     onTermClick: (termId: string) => {
       const card = visibleCards.find(c => (c.id || c.term) === termId);
       if (card) {
-        onTermClick({} as React.MouseEvent, card.term);
+        // 创建一个模拟的 MouseEvent 对象，包含必要的 target 属性
+        const mockEvent = {
+          target: {
+            getBoundingClientRect: () => ({
+              left: window.innerWidth / 2,
+              top: window.innerHeight / 2,
+              width: 0,
+              height: 0,
+              bottom: window.innerHeight / 2,
+              right: window.innerWidth / 2,
+              x: window.innerWidth / 2,
+              y: window.innerHeight / 2,
+              toJSON: () => ({})
+            })
+          }
+        } as unknown as React.MouseEvent;
+        onTermClick(mockEvent, card.term);
       }
     },
     terms: visibleCards.map(c => ({ 

@@ -33,6 +33,10 @@ interface AuthState {
   fetchSession: () => Promise<void>;
 }
 
+// 添加认证状态缓存
+let lastAuthCheckTime = 0;
+const AUTH_CHECK_INTERVAL = 5000; // 5秒内不重复检查
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -75,6 +79,8 @@ export const useAuthStore = create<AuthState>()(
             dataMode: 'local',
             isLoading: false,
           });
+          // 清除缓存时间
+          lastAuthCheckTime = 0;
         }
       },
 
@@ -88,11 +94,22 @@ export const useAuthStore = create<AuthState>()(
       },
 
       fetchSession: async () => {
+        // 防止重复请求和过于频繁的检查
+        const state = get();
+        const now = Date.now();
+        
+        // 如果正在加载或距离上次检查不足5秒，跳过
+        if (state.isLoading || (now - lastAuthCheckTime < AUTH_CHECK_INTERVAL)) {
+          console.log('Skipping auth check - too frequent or already loading');
+          return;
+        }
+        
+        lastAuthCheckTime = now;
         set({ isLoading: true });
         try {
           const res = await fetch('/api/auth/session');
           const data = await res.json();
-
+      
           if (data.authenticated && data.user) {
             set({
               user: {
@@ -105,6 +122,7 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true,
               token: data.accessToken || null,
               dataMode: 'cloud',
+              isLoading: false, // 确保设置 loading 状态
             });
           } else {
             // Not authenticated, keep local mode
@@ -113,6 +131,7 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: false,
               token: null,
               dataMode: 'local',
+              isLoading: false,
             });
           }
         } catch (error) {
@@ -123,6 +142,7 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: false,
             token: null,
             dataMode: 'local',
+            isLoading: false,
           });
         } finally {
           set({ isLoading: false });

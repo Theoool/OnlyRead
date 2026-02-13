@@ -149,8 +149,20 @@ function RemoteArticleReader({
   const handleTermClick = (e: React.MouseEvent, term: string) => {
       const saved = concepts[term];
       if (saved) {
-        const rect = (e.target as HTMLElement).getBoundingClientRect();
-        setActiveCard({ x: rect.left, y: rect.top, term, savedData: saved });
+        // 添加安全检查，确保 e.target 存在且有 getBoundingClientRect 方法
+        const target = e.target as HTMLElement;
+        if (target && typeof target.getBoundingClientRect === 'function') {
+          const rect = target.getBoundingClientRect();
+          setActiveCard({ x: rect.left, y: rect.top, term, savedData: saved });
+        } else {
+          // 如果无法获取位置信息，使用屏幕中心位置
+          setActiveCard({ 
+            x: window.innerWidth / 2, 
+            y: window.innerHeight / 2, 
+            term, 
+            savedData: saved 
+          });
+        }
       }
   };
 
