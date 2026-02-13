@@ -192,36 +192,44 @@ function RemoteArticleReader({
             
               {/* Floating TOC Toggle for Book Mode */}
               <div className={twMerge(
-                "fixed z-50 flex items-center gap-3",
-                isMobile ? "top-2 right-2" : "top-3 right-6"
+                "fixed z-50 flex items-center gap-2",
+                isMobile ? "top-2.5 sm:top-3 right-2.5 sm:right-3" : "top-3 right-6"
               )}>
                 <motion.button
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     onClick={() => setIsTocOpen((v) => !v)}
-                    className="pointer-events-auto flex items-center gap-2 bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-2 rounded-full border border-zinc-200/50 dark:border-zinc-800/50 transition-colors hover:bg-white dark:hover:bg-zinc-950"
+                    className={twMerge(
+                      "pointer-events-auto flex items-center justify-center gap-2 bg-white/90 dark:bg-black/90 backdrop-blur-md rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50 transition-all active:scale-95 hover:bg-white dark:hover:bg-zinc-950 shadow-sm touch-manipulation",
+                      isMobile ? "min-w-[40px] min-h-[40px] sm:min-w-[44px] sm:min-h-[44px] px-2.5 py-2 sm:px-3 sm:py-2.5" : "px-3 py-2 rounded-full"
+                    )}
                     type="button"
                   >
-                    <List className="w-3 h-3 text-zinc-400" />
-                    <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
+                    <List className={twMerge(isMobile ? "w-4 h-4 sm:w-5 sm:h-5" : "w-3 h-3", "text-zinc-400")} />
+                    <span className={twMerge(
+                      "font-mono text-zinc-500 dark:text-zinc-400",
+                      isMobile ? "text-xs hidden sm:inline" : "text-[10px]"
+                    )}>
                       章节
                     </span>
                   </motion.button>
                   
-                  <ConceptHud 
-                      cards={visibleCards} 
-                      onTermClick={(term) => {
-                          const saved = concepts[term];
-                          if (saved) {
-                              setActiveCard({
-                                  x: window.innerWidth / 2 - 140,
-                                  y: window.innerHeight / 2 - 100,
-                                  term,
-                                  savedData: saved
-                              });
-                          }
-                      }}
-                  />
+                  <div className="hidden md:block">
+                    <ConceptHud 
+                        cards={visibleCards} 
+                        onTermClick={(term) => {
+                            const saved = concepts[term];
+                            if (saved) {
+                                setActiveCard({
+                                    x: window.innerWidth / 2 - 140,
+                                    y: window.innerHeight / 2 - 100,
+                                    term,
+                                    savedData: saved
+                                });
+                            }
+                        }}
+                    />
+                  </div>
               </div>
             </>
           ) : (
@@ -274,29 +282,38 @@ function RemoteArticleReader({
                     className={twMerge(
                       "fixed z-50 pointer-events-auto",
                       isMobile 
-                        ? "inset-2" 
+                        ? "inset-2 sm:inset-3" 
                         : "top-[76px] right-6 md:right-12 w-[280px] max-h-[70vh]"
                     )}
                   >
                     <div className={twMerge(
-                      "bg-white/90 dark:bg-black/90 backdrop-blur-md rounded-2xl shadow-lg border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden",
+                      "bg-white/95 dark:bg-black/95 backdrop-blur-md rounded-2xl shadow-xl border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden",
                       isMobile ? "h-full" : ""
                     )}>
-                      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200/50 dark:border-zinc-800/50">
-                        <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
+                      <div className={twMerge(
+                        "flex items-center justify-between border-b border-zinc-200/50 dark:border-zinc-800/50",
+                        isMobile ? "px-4 py-3 sm:px-5 sm:py-4" : "px-4 py-3"
+                      )}>
+                        <span className={twMerge(
+                          "font-mono text-zinc-500 dark:text-zinc-400",
+                          isMobile ? "text-sm sm:text-xs" : "text-[10px]"
+                        )}>
                           目录
                         </span>
                         <button
                           onClick={() => setIsTocOpen(false)}
-                          className="text-[10px] font-mono text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
+                          className={twMerge(
+                            "font-mono text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors touch-manipulation",
+                            isMobile ? "text-sm sm:text-xs min-w-[40px] min-h-[40px] sm:min-w-[44px] sm:min-h-[44px] -mr-1 sm:-mr-2" : "text-[10px]"
+                          )}
                           type="button"
                         >
                           关闭
                         </button>
                       </div>
                       <div className={twMerge(
-                        "overflow-y-auto no-scrollbar p-2",
-                        isMobile ? "max-h-[calc(100%-44px)]" : "max-h-[calc(70vh-44px)]"
+                        "overflow-y-auto no-scrollbar",
+                        isMobile ? "max-h-[calc(100%-52px)] sm:max-h-[calc(100%-60px)] p-2 sm:p-3" : "max-h-[calc(70vh-44px)] p-2"
                       )}>
                         {tocItems.map((item, i) => (
                           <button
@@ -306,12 +323,13 @@ function RemoteArticleReader({
                               setIsTocOpen(false);
                             }}
                             className={twMerge(
-                              "w-full text-left rounded-lg px-2 py-2 transition-colors text-xs",
+                              "w-full text-left rounded-lg transition-all touch-manipulation active:scale-98",
+                              isMobile ? "px-2.5 py-2.5 sm:px-3 sm:py-3 text-sm mb-1.5 sm:mb-2" : "px-2 py-2 text-xs",
                               item.index <= currentIndex && (tocItems[i+1]?.index > currentIndex || i === tocItems.length-1)
-                                ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-900/60 dark:text-zinc-50"
+                                ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-900/60 dark:text-zinc-50 font-medium"
                                 : "text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-900/30"
                             )}
-                            style={{ paddingLeft: 8 + Math.max(0, item.depth - 1) * 12 }}
+                            style={{ paddingLeft: (isMobile ? 10 : 8) + Math.max(0, item.depth - 1) * (isMobile ? 14 : 12) }}
                           >
                             {item.text}
                           </button>
@@ -356,11 +374,11 @@ function RemoteArticleReader({
                 <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="fixed inset-0 z-[100] flex items-center justify-center bg-white/80 dark:bg-black/80 backdrop-blur-xl p-4"
+                className="fixed inset-0 z-[100] flex items-center justify-center bg-white/80 dark:bg-black/80 backdrop-blur-xl p-4 md:p-6"
               >
-                <div className="bg-white dark:bg-zinc-900 p-6 md:p-8 rounded-2xl shadow-2xl border border-zinc-100 dark:border-zinc-800 max-w-sm w-full text-center">
-                    <div className="w-12 h-12 md:w-16 md:h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6">
-                        <Check className="w-6 h-6 md:w-8 md:h-8 text-zinc-900 dark:text-zinc-100" />
+                <div className="bg-white dark:bg-zinc-900 p-6 md:p-8 rounded-2xl md:rounded-3xl shadow-2xl border border-zinc-100 dark:border-zinc-800 max-w-sm w-full text-center">
+                    <div className="w-14 h-14 md:w-16 md:h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-5 md:mb-6">
+                        <Check className="w-7 h-7 md:w-8 md:h-8 text-zinc-900 dark:text-zinc-100" />
                     </div>
                     <h2 className="text-xl md:text-2xl font-serif font-medium mb-2">阅读完成</h2>
                     <p className="text-zinc-500 dark:text-zinc-400 mb-6 md:mb-8 text-sm md:text-base">
@@ -373,12 +391,15 @@ function RemoteArticleReader({
                               router.replace(`/read?id=${nextArticleId}`)
                               setIsFinished(false)
                             }}
-                            className="w-full py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black rounded-xl font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2 touch-manipulation"
+                            className="w-full min-h-[48px] md:min-h-[44px] py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black rounded-xl md:rounded-xl font-medium hover:opacity-90 active:scale-98 transition-all flex items-center justify-center gap-2 touch-manipulation text-base md:text-sm"
                           >
-                            下一章 <ChevronRight className="w-4 h-4" />
+                            下一章 <ChevronRight className="w-5 h-5 md:w-4 md:h-4" />
                           </button>
                       )}
-                      <button onClick={() => router.replace("/")} className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl font-medium hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors touch-manipulation">
+                      <button 
+                        onClick={() => router.replace("/")} 
+                        className="w-full min-h-[48px] md:min-h-[44px] py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl md:rounded-xl font-medium hover:bg-zinc-200 dark:hover:bg-zinc-700 active:scale-98 transition-all touch-manipulation text-base md:text-sm"
+                      >
                         返回首页
                       </button>
                       </div>

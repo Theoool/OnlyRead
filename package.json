@@ -67,6 +67,7 @@
     "react-markdown": "^10.1.0",
     "react-reader": "^2.0.15",
     "react-simple-code-editor": "^0.14.1",
+    "react-syntax-highlighter": "^16.1.0",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
     "sharp": "^0.34.5",

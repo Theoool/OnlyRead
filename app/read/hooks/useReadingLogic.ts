@@ -270,42 +270,55 @@ export function useReadingLogic(initialArticle?: Article) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [router, checkCooldown, saveImmediately]); // 最小依赖
 
-  // 触摸滑动控制 - 移动端手势支持
+  // 触摸滑动控制 - 移动端手势支持（优化版）
   useEffect(() => {
-    const containerRef = { current: document.body };
     let touchStartX = 0;
     let touchStartY = 0;
-    let touchEndX = 0;
-    let touchEndY = 0;
-    const MIN_SWIPE_DISTANCE = 50;
-    const MAX_VERTICAL_DISTANCE = 100; // 排除垂直滑动的干扰
+    let touchStartTime = 0;
+    const MIN_SWIPE_DISTANCE = 30; // 降低滑动阈值，更灵敏
+    const MAX_VERTICAL_RATIO = 1.5; // 垂直/水平比例，防止误触
+    const SWIPE_TIMEOUT = 300; // 滑动超时时间
 
     const handleTouchStart = (e: TouchEvent) => {
-      touchStartX = e.changedTouches[0].screenX;
-      touchStartY = e.changedTouches[0].screenY;
+      touchStartX = e.changedTouches[0].clientX;
+      touchStartY = e.changedTouches[0].clientY;
+      touchStartTime = Date.now();
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
-      touchEndX = e.changedTouches[0].screenX;
-      touchEndY = e.changedTouches[0].screenY;
+      const touchEndX = e.changedTouches[0].clientX;
+      const touchEndY = e.changedTouches[0].clientY;
+      const touchEndTime = Date.now();
       
       const deltaX = touchEndX - touchStartX;
-      const deltaY = Math.abs(touchEndY - touchStartY);
+      const deltaY = touchEndY - touchStartY;
+      const absDeltaX = Math.abs(deltaX);
+      const absDeltaY = Math.abs(deltaY);
+      const duration = touchEndTime - touchStartTime;
       
-      // 忽略垂直滑动
-      if (deltaY > MAX_VERTICAL_DISTANCE) return;
+      // 超时或主要是垂直滑动，忽略
+      if (duration > SWIPE_TIMEOUT || absDeltaY > absDeltaX * MAX_VERTICAL_RATIO) {
+        return;
+      }
+      
+      // 水平滑动距离不够，忽略
+      if (absDeltaX < MIN_SWIPE_DISTANCE) return;
       
       const { sentences, currentIndex, isFinished, article } = stateRef.current;
       
-      // 右滑（手指从左向右）- 后退
-      if (deltaX > MIN_SWIPE_DISTANCE) {
+      // 触觉反馈（如果支持）
+      if ('vibrate' in navigator) {
+        navigator.vibrate(10);
+      }
+      
+      // 右滑 - 后退
+      if (deltaX > 0) {
         if (currentIndex > 0) {
           setCurrentIndexState(currentIndex - 1);
         }
       }
-      
-      // 左滑（手指从右向左）- 前进
-      if (deltaX < -MIN_SWIPE_DISTANCE) {
+      // 左滑 - 前进
+      else {
         if (!checkCooldown()) return;
         
         if (currentIndex < sentences.length - 1) {
@@ -317,38 +330,12 @@ export function useReadingLogic(initialArticle?: Article) {
       }
     };
 
-    // 双击处理 - 双击返回顶部或底部
-    let lastTap = 0;
-    const handleDoubleTap = (e: TouchEvent) => {
-      const currentTime = new Date().getTime();
-      const tapLength = currentTime - lastTap;
-      
-      if (tapLength < 300 && tapLength > 0) {
-        // 双击
-        const { sentences } = stateRef.current;
-        const touchY = e.changedTouches[0].screenY;
-        const screenHeight = window.innerHeight;
-        
-        // 点击屏幕上半部分返回顶部，下半部分跳到底部
-        if (touchY < screenHeight / 2) {
-          setCurrentIndexState(0);
-        } else {
-          setCurrentIndexState(sentences.length - 1);
-        }
-        
-        e.preventDefault();
-      }
-      lastTap = currentTime;
-    };
-
     document.addEventListener("touchstart", handleTouchStart, { passive: true });
     document.addEventListener("touchend", handleTouchEnd, { passive: true });
-    document.addEventListener("touchend", handleDoubleTap, { passive: false });
 
     return () => {
       document.removeEventListener("touchstart", handleTouchStart);
       document.removeEventListener("touchend", handleTouchEnd);
-      document.removeEventListener("touchend", handleDoubleTap);
     };
   }, [checkCooldown, saveImmediately]);
 

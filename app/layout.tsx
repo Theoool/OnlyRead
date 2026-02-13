@@ -4,25 +4,7 @@ import "./globals.css";
 import { QueryProvider } from "@/lib/react-query/providers";
 import { Toaster } from "sonner";
 
-/*
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-*/
-
-/*
-const notoSerifSC = Noto_Serif_SC({
-  variable: "--font-noto-serif",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
-});
-*/
 
 export const metadata: Metadata = {
   title: "数字忏悔室",

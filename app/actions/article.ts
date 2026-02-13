@@ -118,3 +118,20 @@ export async function deleteArticle(id: string) {
 
   return { success: true };
 }
+
+/**
+ * Get article navigation data (previous/next articles and collection info)
+ * Uses the repository method directly for better performance and type safety
+ */
+export async function getArticleNavigation(articleId: string) {
+  const user = await requireUser();
+  
+  try {
+    // Use the repository method directly - no network overhead
+    const navigation = await ArticlesRepository.getNavigation(articleId, user.id);
+    return navigation; 
+  } catch (error) {
+    console.error('Failed to fetch article navigation:', error);
+    return { prev: null, next: null, collection: null };
+  }
+}

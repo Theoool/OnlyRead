@@ -325,5 +325,85 @@ export class ArticlesRepository {
 
     return results;
   }
+
+  /**
+   * Get navigation data for an article (previous, next, and collection info)
+   */
+  static async getNavigation(id: string, userId: string) {
+    // Find the article to get its collectionId and order
+    const article = await prisma.article.findFirst({
+      where: { 
+        id, 
+        userId,
+        deletedAt: null 
+      },
+      select: { collectionId: true, order: true }
+    });
+
+    if (!article || !article.collectionId) {
+      return {
+        prev: null,
+        next: null,
+        collection: null
+      };
+    }
+
+    const queries: Promise<any>[] = [
+      // Previous article
+      prisma.article.findFirst({
+        where: {
+          collectionId: article.collectionId,
+          order: { lt: article.order || 0 },
+          deletedAt: null,
+          userId: userId
+        },
+        orderBy: { order: 'desc' },
+        select: { id: true, title: true }
+      }),
+      // Next article
+      prisma.article.findFirst({
+        where: {
+          collectionId: article.collectionId,
+          order: { gt: article.order || 0 },
+          deletedAt: null,
+          userId: userId
+        },
+        orderBy: { order: 'asc' },
+        select: { id: true, title: true }
+      }),
+      // Collection with articles
+      prisma.collection.findUnique({
+        where: { id: article.collectionId, userId: userId },
+        select: {
+          id: true,
+          title: true,
+          totalChapters: true,
+          completedChapters: true,
+          readingProgress: true,
+          articles: {
+            where: { deletedAt: null },
+            select: {
+              id: true,
+              title: true,
+              progress: true,
+              order: true
+            },
+            orderBy: { order: 'asc' }
+          }
+        }
+      })
+    ];
+
+    const results = await Promise.all(queries);
+    const prev = results[0];
+    const next = results[1];
+    const collection = results[2];
+
+    return {
+      prev,
+      next,
+      collection
+    };
+  }
 }
 

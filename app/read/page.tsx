@@ -1,7 +1,7 @@
 import ReaderClient from './ReaderClient';
 import { createClient } from '@/lib/supabase/server';
 import { ArticlesRepository } from '@/lib/core/reading/articles.repository';
-import { prisma } from '@/lib/infrastructure/database/prisma';
+import { getArticleNavigation } from '@/app/actions/article';
 import { Loader2 } from 'lucide-react';
 import { Suspense } from 'react';
 
@@ -21,43 +21,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ i
     return <ReaderClient />;
   }
 
-  // Fetch article and navigation in parallel
-  const articlePromise = ArticlesRepository.findById(id, user.id);
-  const navigationPromise = (async () => {
-      // Logic from API route
-      const article = await prisma.article.findUnique({
-        where: { id, userId: user.id },
-        select: { collectionId: true, order: true }
-      });
-
-      if (!article || !article.collectionId) return null;
-
-      const [prev, next, collection] = await Promise.all([
-        prisma.article.findFirst({
-          where: { collectionId: article.collectionId, order: { lt: article.order || 0 }, deletedAt: null },
-          orderBy: { order: 'desc' },
-          select: { id: true, title: true }
-        }),
-        prisma.article.findFirst({
-          where: { collectionId: article.collectionId, order: { gt: article.order || 0 }, deletedAt: null },
-          orderBy: { order: 'asc' },
-          select: { id: true, title: true }
-        }),
-        prisma.collection.findUnique({
-          where: { id: article.collectionId },
-          select: {
-            id: true, title: true, totalChapters: true, completedChapters: true, readingProgress: true,
-            articles: {
-                select: { id: true, title: true, progress: true, order: true },
-                orderBy: { order: 'asc' }
-            }
-          }
-        })
-      ]);
-      return { prev, next, collection };
-  })();
-
-  const [article, navigation] = await Promise.all([articlePromise, navigationPromise]);
+  // Fetch article and navigation in parallel through proper Server Actions
+  const [article, navigation] = await Promise.all([
+    ArticlesRepository.findById(id, user.id),
+    getArticleNavigation(id) // Use Server Action instead of client fetch
+  ]);
 
   return (
     <Suspense fallback={
@@ -79,7 +47,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ i
           updatedAt: article.updatedAt.toISOString(),
           content: article.content || undefined,
           html: article.html || undefined,
-          // Convert nulls to undefined for other fields if needed
+         
         }}
         initialCollection={navigation?.collection as any}
       />

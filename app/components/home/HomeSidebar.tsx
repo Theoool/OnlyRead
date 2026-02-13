@@ -121,7 +121,7 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
   return (
     <section 
       className={twMerge(
-        "w-full md:w-1/2 lg:w-[55%] flex flex-col p-4 md:p-12 relative z-10 bg-white dark:bg-black border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 transition-colors duration-200",
+        "w-full md:w-1/2 lg:w-[55%] flex flex-col p-5 md:p-12 relative z-10 bg-white dark:bg-black border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 transition-colors duration-200",
         isDragging ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500 dark:border-blue-500" : ""
       )}
       onDragOver={onDragOver}
@@ -139,29 +139,32 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
       <motion.header
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-4 md:mb-6 flex items-center justify-between"
+        className="mb-5 md:mb-6 flex items-center justify-between"
       >
-        <h1 className="text-lg md:text-xl font-bold tracking-tight flex items-center gap-2">
+        <h1 className="text-xl md:text-xl font-bold tracking-tight flex items-center gap-2">
           <span className="w-2 h-2 bg-black dark:bg-white rounded-full inline-block"/>
           阅读
         </h1>
 
         {/* Auth UI */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3">
           {isAuthenticated && user ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3">
               <div className="flex items-center gap-2 text-sm">
                 {user.avatarUrl && (
                   <Image
                     src={user.avatarUrl}
                     alt={user.fullName || user.email || "User"}
-                    width={24}
-                    height={24}
-                    className="w-6 h-6 rounded-full"
+                    width={isMobile ? 28 : 24}
+                    height={isMobile ? 28 : 24}
+                    className={twMerge(
+                      "rounded-full",
+                      isMobile ? "w-7 h-7" : "w-6 h-6"
+                    )}
                     unoptimized
                   />
                 )}
-                <span className="text-zinc-600 dark:text-zinc-400">
+                <span className="text-zinc-600 dark:text-zinc-400 hidden md:inline">
                   {user.fullName || user.email?.split('@')[0]}
                 </span>
               </div>
@@ -171,18 +174,24 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
                   window.location.href = '/';
                 }}
                 disabled={isAuthLoading}
-                className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50"
+                className={twMerge(
+                  "hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all disabled:opacity-50 active:scale-95 touch-manipulation",
+                  isMobile ? "p-2.5 min-w-[44px] min-h-[44px]" : "p-2"
+                )}
                 title="Logout"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className={twMerge(isMobile ? "w-5 h-5" : "w-4 h-4")} />
               </button>
             </div>
           ) : (
             <button
               onClick={() => window.location.href = '/auth'}
-              className="flex items-center gap-2 px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
+              className={twMerge(
+                "flex items-center justify-center gap-2 bg-black dark:bg-white text-white dark:text-black rounded-xl hover:opacity-90 active:scale-95 transition-all font-medium touch-manipulation",
+                isMobile ? "min-h-[44px] px-5 py-2.5 text-base" : "px-4 py-2 text-sm rounded-lg"
+              )}
             >
-              <User className="w-4 h-4" />
+              <User className={twMerge(isMobile ? "w-5 h-5" : "w-4 h-4")} />
               登录
             </button>
           )}
@@ -197,24 +206,39 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.12 }}
-          className="mb-4"
+          className="mb-5 md:mb-4"
         >
           <Link
             href="/learning"
-            className="flex items-center gap-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors group"
+            className={twMerge(
+              "flex items-center gap-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 active:scale-98 transition-all group touch-manipulation",
+              isMobile ? "p-4 min-h-[60px]" : "p-3"
+            )}
           >
-            <div className="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center">
-              <GraduationCap className="w-5 h-5 text-white" />
+            <div className={twMerge(
+              "bg-indigo-500 rounded-xl flex items-center justify-center",
+              isMobile ? "w-12 h-12" : "w-10 h-10"
+            )}>
+              <GraduationCap className={twMerge(isMobile ? "w-6 h-6" : "w-5 h-5", "text-white")} />
             </div>
             <div className="flex-1">
-              <div className="font-medium text-sm text-zinc-900 dark:text-zinc-100">
+              <div className={twMerge(
+                "font-medium text-zinc-900 dark:text-zinc-100",
+                isMobile ? "text-base" : "text-sm"
+              )}>
                 学习中心
               </div>
-              <div className="text-xs text-zinc-500">
+              <div className={twMerge(
+                "text-zinc-500",
+                isMobile ? "text-sm" : "text-xs"
+              )}>
                 AI 导师陪伴你的学习之旅
               </div>
             </div>
-            <ArrowRight className="w-4 h-4 text-indigo-500 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className={twMerge(
+              isMobile ? "w-5 h-5" : "w-4 h-4",
+              "text-indigo-500 group-hover:translate-x-1 transition-transform"
+            )} />
           </Link>
         </motion.div>
       )}
@@ -224,7 +248,7 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
-        className="mb-6"
+        className="mb-6 md:mb-6"
       >
         <SearchBar />
       </motion.div>
@@ -243,7 +267,10 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
         >
           <textarea
             ref={textareaRef}
-            className="w-full h-[35vh] md:h-[40vh] bg-transparent text-xl md:text-4xl font-mono leading-tight outline-none resize-none placeholder:text-zinc-200 dark:placeholder:text-zinc-800"
+            className={twMerge(
+              "w-full bg-transparent font-mono leading-tight outline-none resize-none placeholder:text-zinc-200 dark:placeholder:text-zinc-800",
+              isMobile ? "h-[30vh] text-2xl" : "h-[40vh] text-4xl"
+            )}
             placeholder="你想阅读什么？"
             value={value}
             onChange={(e) => setValue(e.target.value)}
@@ -253,8 +280,8 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
           />
           
           {/* Input Actions */}
-          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 md:gap-4 flex-wrap">
                {/* Type Indicator */}
                <AnimatePresence>
                 {value && (
@@ -262,7 +289,10 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -10 }}
-                    className="text-xs font-mono text-zinc-400 px-2 py-1 bg-zinc-100 dark:bg-zinc-900 rounded"
+                    className={twMerge(
+                      "font-mono text-zinc-400 bg-zinc-100 dark:bg-zinc-900 rounded",
+                      isMobile ? "text-xs px-2.5 py-1.5" : "text-xs px-2 py-1"
+                    )}
                   >
                     {isInputUrl ? "检测到链接" : "纯文本"}
                   </motion.span>
@@ -276,16 +306,19 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -10 }}
-                    className="flex items-center gap-2 text-xs text-red-500 font-mono bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded"
+                    className={twMerge(
+                      "flex items-center gap-2 text-red-500 font-mono bg-red-50 dark:bg-red-900/20 rounded",
+                      isMobile ? "text-xs px-2.5 py-1.5" : "text-xs px-2 py-1"
+                    )}
                   >
-                    <AlertCircle className="w-3 h-3" />
-                    {error}
+                    <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate max-w-[150px] md:max-w-none">{error}</span>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               {!value && (
                 <>
                   <motion.button
@@ -294,10 +327,13 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => fileInputRef.current?.click()}
-                    className="h-10 px-4 md:h-8 md:px-3 rounded-lg md:rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-500 text-sm md:text-xs font-mono flex items-center gap-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors touch-manipulation"
+                    className={twMerge(
+                      "rounded-xl bg-zinc-100 dark:bg-zinc-900 text-zinc-500 font-mono flex items-center justify-center gap-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 active:scale-95 transition-all touch-manipulation",
+                      isMobile ? "min-w-[48px] min-h-[48px] px-4" : "h-8 px-3 text-xs rounded"
+                    )}
                   >
-                    <FileText className="w-4 h-4 md:w-3 md:h-3" />
-                    <span className="md:hidden">导入文件</span>
+                    <FileText className={twMerge(isMobile ? "w-5 h-5" : "w-3 h-3")} />
+                    <span className={twMerge(isMobile ? "text-sm" : "hidden")}>文件</span>
                   </motion.button>
 
                   <motion.button
@@ -306,10 +342,13 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handlePasteClick}
-                    className="h-10 px-4 md:h-8 md:px-3 rounded-lg md:rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-500 text-sm md:text-xs font-mono flex items-center gap-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors touch-manipulation"
+                    className={twMerge(
+                      "rounded-xl bg-zinc-100 dark:bg-zinc-900 text-zinc-500 font-mono flex items-center justify-center gap-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 active:scale-95 transition-all touch-manipulation",
+                      isMobile ? "min-w-[48px] min-h-[48px] px-4" : "h-8 px-3 text-xs rounded"
+                    )}
                   >
-                    <Clipboard className="w-4 h-4 md:w-3 md:h-3" />
-                    <span className="md:hidden">粘贴</span>
+                    <Clipboard className={twMerge(isMobile ? "w-5 h-5" : "w-3 h-3")} />
+                    <span className={twMerge(isMobile ? "text-sm" : "hidden")}>粘贴</span>
                   </motion.button>
                 </>
               )}
@@ -317,14 +356,20 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
               <button
                 onClick={handleSubmit}
                 disabled={!value || loading}
-                className="h-12 w-12 md:h-10 md:w-auto md:px-4 rounded-full md:rounded-lg bg-black dark:bg-white text-white dark:text-black disabled:opacity-0 transition-all flex items-center justify-center gap-2 group touch-manipulation"
+                className={twMerge(
+                  "bg-black dark:bg-white text-white dark:text-black disabled:opacity-0 transition-all flex items-center justify-center gap-2 group active:scale-95 touch-manipulation",
+                  isMobile ? "min-w-[56px] min-h-[56px] rounded-full" : "h-10 w-auto px-4 rounded-lg"
+                )}
               >
                 {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className={twMerge(isMobile ? "w-6 h-6" : "w-5 h-5", "animate-spin")} />
                 ) : (
                   <>
                     <span className="hidden md:inline font-medium text-sm">进入</span>
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    <ArrowRight className={twMerge(
+                      isMobile ? "w-6 h-6" : "w-5 h-5",
+                      "group-hover:translate-x-1 transition-transform"
+                    )} />
                   </>
                 )}
               </button>

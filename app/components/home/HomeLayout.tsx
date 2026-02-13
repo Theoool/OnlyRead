@@ -26,10 +26,10 @@ export function HomeLayout({ children }: HomeLayoutProps) {
     return (
       <div className="h-screen w-full flex flex-col bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-50 font-sans overflow-hidden">
         {/* 移动端标签栏 */}
-        <div className="flex-none h-12 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-around bg-white dark:bg-black px-4 z-20">
+        <div className="flex-none h-14 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-around bg-white dark:bg-black px-2 z-20">
           <button
             onClick={() => setActiveTab('input')}
-            className={`flex-1 h-full flex items-center justify-center text-sm font-medium transition-colors border-b-2 ${
+            className={`flex-1 h-full flex items-center justify-center text-base font-medium transition-all border-b-2 active:scale-95 touch-manipulation ${
               activeTab === 'input'
                 ? 'border-zinc-900 dark:border-zinc-100 text-zinc-900 dark:text-zinc-100'
                 : 'border-transparent text-zinc-400'
@@ -39,7 +39,7 @@ export function HomeLayout({ children }: HomeLayoutProps) {
           </button>
           <button
             onClick={() => setActiveTab('content')}
-            className={`flex-1 h-full flex items-center justify-center text-sm font-medium transition-colors border-b-2 ${
+            className={`flex-1 h-full flex items-center justify-center text-base font-medium transition-all border-b-2 active:scale-95 touch-manipulation ${
               activeTab === 'content'
                 ? 'border-zinc-900 dark:border-zinc-100 text-zinc-900 dark:text-zinc-100'
                 : 'border-transparent text-zinc-400'
