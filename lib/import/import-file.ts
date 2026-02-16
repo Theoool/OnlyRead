@@ -165,9 +165,9 @@ export async function importFileForUser(params: ImportFileParams): Promise<Impor
         collection,
         articlesCount: articles.length,
         totalChapters: parsedBook.chapters.length,
-        jobId,
+        jobId:jobId as string,
         errors: errors.length > 0 ? errors : undefined,
-        warnings: [...warnings, ...cleanupWarnings, ...(parsedBook.failedChapters || [])],
+        warnings: [...warnings, ...cleanupWarnings as string[], ...(parsedBook.failedChapters || [])],
         metadata: {
           ...parsedBook.metadata,
           processingArchitecture: parsedBook.metadata?.processedBy || 'unknown',

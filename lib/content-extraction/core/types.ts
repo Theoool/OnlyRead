@@ -22,7 +22,7 @@ export interface ContentMetadata {
   codeBlockCount: number;
   sourceQuality: 'high' | 'medium' | 'low';
   extractedAt: number;
-  extractionMethod: 'jina' | 'readability' | 'browser';
+  extractionMethod: 'jina' | 'readability' | 'browser' | 'markdown.new';
   language?: string;
   author?: string;
   publishedDate?: string;

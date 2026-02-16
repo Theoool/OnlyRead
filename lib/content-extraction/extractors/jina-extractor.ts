@@ -119,6 +119,10 @@ export class MarkdownNewExtractor implements IContentExtractor {
     return {
       wordCount: length,
       readingTime,
+      imageCount: 0,
+      linkCount: 0,
+      codeBlockCount: 0,
+      sourceQuality: 'low',
       extractedAt: Date.now(),
       extractionMethod: 'markdown.new',
     };

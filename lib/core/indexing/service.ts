@@ -4,7 +4,6 @@ import { chunkText } from "@/lib/text-processing";
 import { randomUUID } from "crypto";
 import { ChatOpenAI } from "@langchain/openai";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { User } from "@/lib/store/useAuthStore";
 
 export class IndexingService {
   /**
@@ -28,7 +27,7 @@ export class IndexingService {
       where: { articleId }
     });
 
-    if (existingChunks > 0 && article.embedding) {
+    if (existingChunks > 0) {
       console.log(`[Indexing] Article ${articleId} already indexed, skipping`);
       return;
     }
@@ -171,7 +170,7 @@ export class IndexingService {
   /**
    * Generates a structured summary of the content using LLM.
    */
-  private static async generateSummary(text: string, user?: User | null): Promise<string> {
+  private static async generateSummary(text: string, user?: { subscriptionType: string } | null): Promise<string> {
  
     if (user?.subscriptionType === 'free') {
       return "";

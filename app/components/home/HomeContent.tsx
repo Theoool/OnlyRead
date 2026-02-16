@@ -91,15 +91,7 @@ export function HomeContent({
                   学习
               </a>
 
-              <a href="/qa" className="flex items-center gap-1 text-[10px] font-mono text-zinc-500 hover:text-zinc-600 transition-colors group">
-                  <Sparkles className="w-3 h-3" />
-                  问答
-              </a>
 
-              <a href="/search" className="flex items-center gap-1 text-[10px] font-mono text-zinc-500 hover:text-zinc-600 transition-colors">
-                  <Command className="w-3 h-3" />
-                  搜索
-              </a>
 
               <span className="text-[10px] font-mono text-zinc-400 border-l border-zinc-200 dark:border-zinc-800 pl-4">
                   {viewMode === 'articles' ? totalArticlesCount : totalCollectionsCount} 记录
