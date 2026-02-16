@@ -124,7 +124,7 @@ ${conversationText}`;
         data: {
           summary,
           summaryUpdatedAt: new Date(),
-          messageCount: messages.length
+        
         }
       });
 
@@ -143,16 +143,19 @@ ${conversationText}`;
     try {
       const session = await prisma.learningSession.findUnique({
         where: { id: sessionId },
-        select: { summary: true, messageCount: true, summaryUpdatedAt: true }
+        select: { summary: true, summaryUpdatedAt: true, messages: { select: { id: true } } }
       });
 
       if (!session) {
         return null;
       }
 
+      // Get message count from related messages
+      const messageCount = session.messages.length;
+
       // Check if we need to regenerate
       const shouldRegenerate = forceRegenerate || 
-        this.shouldGenerateSummary(session.messageCount, !!session.summary);
+        this.shouldGenerateSummary(messageCount, !!session.summary);
 
       if (shouldRegenerate || !session.summary) {
         return this.generateAndSaveSummary(sessionId);
@@ -165,21 +168,5 @@ ${conversationText}`;
     }
   }
 
-  /**
-   * Increment message count for a session
-   */
-  static async incrementMessageCount(sessionId: string): Promise<void> {
-    try {
-      await prisma.learningSession.update({
-        where: { id: sessionId },
-        data: {
-          messageCount: {
-            increment: 1
-          }
-        }
-      });
-    } catch (error) {
-      console.error('[SummaryService] Error incrementing message count:', error);
-    }
-  }
+  
 }

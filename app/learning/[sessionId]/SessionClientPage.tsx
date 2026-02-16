@@ -167,10 +167,7 @@ export function SessionClientPage({
         <main className="flex-1 overflow-hidden relative">
           <CopilotWidget 
             sessionId={sessionId}
-            mode="tutor"
             variant="full"
-            context={context}
-            initialMessages={initialMessages}
           />
         </main>
       </div>

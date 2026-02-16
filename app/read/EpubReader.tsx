@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { LocalBook, type SyncStatus } from '@/lib/db';
+import { LocalBook } from '@/lib/db';
 import { useTheme } from 'next-themes';
-import { Loader2, List, X, Sparkles, MessageSquare, Check, ChevronRight, BookOpen, Cloud, CloudOff, RefreshCw } from 'lucide-react';
+import { Loader2, MessageSquare, BookOpen, Cloud, CloudOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useConceptStore, ConceptData } from '@/lib/store/useConceptStore';
@@ -13,6 +13,9 @@ import { EpubView } from 'react-reader';
 import { SimpleReaderHeader } from "./components/SimpleReaderHeader";
 import { ReaderFooter } from "./components/ReaderFooter";
 import { AISidebarEphemeral as AISidebar } from "@/app/components/ai/AISidebarEphemeral";
+import { ImportProgressDisplay } from "@/app/components/import/import-progress-display";
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '@/lib/db';
 
 interface EpubReaderProps {
   book: LocalBook;
@@ -28,6 +31,10 @@ export function EpubReader({ book }: EpubReaderProps) {
   const [copilotInitialMessage, setCopilotInitialMessage] = useState<string | undefined>(undefined);
   const router = useRouter();
   const { theme } = useTheme();
+  
+  // 实时监听 book 的同步状态变化
+  const liveBook = useLiveQuery(() => db.books.get(book.id), [book.id]);
+  const currentBook = liveBook || book;
 
   // Toolbar State
   const [toolbarState, setToolbarState] = useState<{
@@ -56,6 +63,12 @@ export function EpubReader({ book }: EpubReaderProps) {
       collectionId: undefined,
       selection: undefined
   });
+
+  // Convert copilotContext to AISidebarEphemeral context format
+  const sidebarContext = useMemo(() => ({
+      articleTitle: book.title,
+      selection: copilotContext.selection
+  }), [book.title, copilotContext.selection]);
 
   // Set Copilot context when book loads
   useEffect(() => {
@@ -252,7 +265,7 @@ export function EpubReader({ book }: EpubReaderProps) {
             />
 
            {/* Sync Status Indicator */}
-           <SyncStatusIndicator book={book} />
+           <SyncStatusIndicator book={currentBook} />
 
            {/* Reader Area */}
            <div className="flex-1 w-full h-full relative z-10 overflow-hidden flex pt-[60px]">
@@ -479,9 +492,8 @@ export function EpubReader({ book }: EpubReaderProps) {
             setCopilotInitialMessage(undefined)
           }}
           context={{ 
-              articleIds: copilotContext.articleIds,
-              collectionId: copilotContext.collectionId,
-              selection: copilotContext.selection
+              articleTitle: sidebarContext.articleTitle,
+              selection: sidebarContext.selection
           }}
           initialMessage={copilotInitialMessage}
           layoutMode="flat"
@@ -494,88 +506,87 @@ export function EpubReader({ book }: EpubReaderProps) {
 function SyncStatusIndicator({ book }: { book: LocalBook }) {
   const router = useRouter();
   
-  const getStatusConfig = (status: SyncStatus) => {
-    switch (status) {
-      case 'local':
-        return {
-          icon: <CloudOff className="w-3 h-3" />,
-          text: '本地模式',
-          color: 'text-zinc-500',
-          bgColor: 'bg-zinc-100 dark:bg-zinc-800',
-          showSwitch: false,
-        };
-      case 'uploading':
-        return {
-          icon: <Loader2 className="w-3 h-3 animate-spin" />,
-          text: `上传中 ${book.syncProgress || 0}%`,
-          color: 'text-blue-500',
-          bgColor: 'bg-blue-50 dark:bg-blue-950/30',
-          showSwitch: false,
-        };
-      case 'processing':
-        return {
-          icon: <Loader2 className="w-3 h-3 animate-spin" />,
-          text: `解析中 ${book.syncProgress || 0}%`,
-          color: 'text-amber-500',
-          bgColor: 'bg-amber-50 dark:bg-amber-950/30',
-          showSwitch: false,
-        };
-      case 'synced':
-        return {
-          icon: <Cloud className="w-3 h-3" />,
-          text: '已同步',
-          color: 'text-green-500',
-          bgColor: 'bg-green-50 dark:bg-green-950/30',
-          showSwitch: true,
-        };
-      case 'error':
-        return {
-          icon: <RefreshCw className="w-3 h-3" />,
-          text: '同步失败',
-          color: 'text-red-500',
-          bgColor: 'bg-red-50 dark:bg-red-950/30',
-          showSwitch: false,
-        };
-      default:
-        return {
-          icon: <CloudOff className="w-3 h-3" />,
-          text: '本地模式',
-          color: 'text-zinc-500',
-          bgColor: 'bg-zinc-100 dark:bg-zinc-800',
-          showSwitch: false,
-        };
-    }
-  };
+  // 如果正在同步且有 jobId，显示进度组件
+  if ((book.syncStatus === 'uploading' || book.syncStatus === 'processing') && book.jobId) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="fixed top-3 left-6 z-50 max-w-md"
+      >
+        <ImportProgressDisplay
+          jobId={book.jobId}
+          onComplete={() => {
+            console.log('同步完成');
+          }}
+          onError={(error) => {
+            console.error('同步失败:', error);
+          }}
+        />
+      </motion.div>
+    );
+  }
+  
+  // 已同步状态 - 显示切换按钮
+  if (book.syncStatus === 'synced') {
+    const handleSwitchToCloud = () => {
+      if (book.cloudCollectionId) {
+        router.push(`/read?id=${book.cloudArticleId || book.cloudCollectionId}`);
+      } else if (book.cloudArticleId) {
+        router.push(`/read?id=${book.cloudArticleId}`);
+      }
+    };
 
-  const config = getStatusConfig(book.syncStatus);
-
-  const handleSwitchToCloud = () => {
-    if (book.cloudCollectionId) {
-      router.push(`/read?id=${book.cloudArticleId || book.cloudCollectionId}`);
-    } else if (book.cloudArticleId) {
-      router.push(`/read?id=${book.cloudArticleId}`);
-    }
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`fixed top-3 left-6 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full ${config.bgColor} border border-zinc-200/50 dark:border-zinc-800/50`}
-    >
-      <span className={config.color}>{config.icon}</span>
-      <span className={`text-[11px] font-medium ${config.color}`}>
-        {config.text}
-      </span>
-      
-      {config.showSwitch && (
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="fixed top-3 left-6 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-50 dark:bg-green-950/30 border border-zinc-200/50 dark:border-zinc-800/50"
+      >
+        <Cloud className="w-3 h-3 text-green-500" />
+        <span className="text-[11px] font-medium text-green-500">已同步</span>
         <button
           onClick={handleSwitchToCloud}
           className="ml-1 px-2 py-0.5 bg-white dark:bg-zinc-800 rounded text-[10px] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors border border-zinc-200 dark:border-zinc-700"
         >
           切换云端
         </button>
-      )}
-    </motion.div>
-  );
+      </motion.div>
+    );
+  }
+  
+  // 本地模式
+  if (book.syncStatus === 'local') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="fixed top-3 left-6 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200/50 dark:border-zinc-800/50"
+      >
+        <CloudOff className="w-3 h-3 text-zinc-500" />
+        <span className="text-[11px] font-medium text-zinc-500">本地模式</span>
+      </motion.div>
+    );
+  }
+  
+  // 错误状态
+  if (book.syncStatus === 'error') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="fixed top-3 left-6 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 dark:bg-red-950/30 border border-zinc-200/50 dark:border-zinc-800/50"
+      >
+        <CloudOff className="w-3 h-3 text-red-500" />
+        <span className="text-[11px] font-medium text-red-500">同步失败</span>
+        {book.syncError && (
+          <span className="text-[10px] text-red-400 max-w-[200px] truncate">
+            {book.syncError}
+          </span>
+        )}
+      </motion.div>
+    );
+  }
+  
+  return null;
 }

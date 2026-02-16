@@ -19,6 +19,7 @@ export interface SyncResult {
   localId: string;
   cloudCollectionId?: string;
   cloudArticleId?: string;
+  jobId?: string;
   error?: string;
 }
 
@@ -102,12 +103,13 @@ export async function syncLocalBookToCloud(
     // 4. 同步完成
     await updateProgress('synced', 100);
 
-    // 5. 更新云端 ID 关联
+    // 5. 更新云端 ID 关联和 jobId
     await db.books.update(localId, {
       syncStatus: 'synced',
       syncProgress: 100,
       cloudCollectionId: data.data.collection?.id,
       cloudArticleId: data.data.articles?.[0]?.id,
+      jobId: data.data.jobId, // 保存 jobId
     });
 
     return {
@@ -115,6 +117,7 @@ export async function syncLocalBookToCloud(
       localId,
       cloudCollectionId: data.data.collection?.id,
       cloudArticleId: data.data.articles?.[0]?.id,
+      jobId: data.data.jobId, // 返回 jobId 用于进度追踪
     };
 
   } catch (error: any) {

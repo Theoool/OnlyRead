@@ -43,8 +43,8 @@ function toBaseMessages(input: any[] | undefined): BaseMessage[] {
     .map((m) => {
       const role = String(m?.role ?? '').toLowerCase()
       const content = typeof m?.content === 'string' ? m.content : JSON.stringify(m?.content ?? '')
-      if (role === 'assistant' || role === 'ai') return new AIMessage(content)
-      if (role === 'system') return new SystemMessage(content)
+      if (role === 'ASSISTANT' || role === 'ai') return new AIMessage(content)
+      if (role === 'SYSTEM') return new SystemMessage(content)
       return new HumanMessage(content)
     })
     .filter(Boolean)
@@ -151,9 +151,9 @@ export async function POST(req: Request) {
             await prisma.learningMessage.create({
               data: {
                 sessionId,
-                role: 'user',
+                role: 'USER',
                 content: userMessage,
-              },
+            },
             })
 
             const ui: any = finalResponse.ui
@@ -172,24 +172,26 @@ export async function POST(req: Request) {
             await prisma.learningMessage.create({
               data: {
                 sessionId,
-                role: 'assistant',
+                role:'ASSISTANT',
                 content,
                 ui,
                 sources,
               },
             })
 
-            // Increment message count and trigger summary generation if needed
-            await SummaryService.incrementMessageCount(sessionId)
+          
             
-            // Async summary generation (don't block response)
             const sessionForSummary = await prisma.learningSession.findUnique({
               where: { id: sessionId },
-              select: { messageCount: true, summary: true }
+              select: { 
+                _count: { select: { messages: true } },  // 返回 { _count: { messages: N } }
+                summary: true 
+              }
             })
             
+            
             if (sessionForSummary && SummaryService.shouldGenerateSummary(
-              sessionForSummary.messageCount, 
+              sessionForSummary._count.messages,
               !!sessionForSummary.summary
             )) {
               // Generate summary in background

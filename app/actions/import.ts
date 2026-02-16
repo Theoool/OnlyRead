@@ -3,13 +3,26 @@
 import { requireUser } from './utils';
 import { extractFromUrl } from '@/lib/content-extraction/server';
 import { prisma } from '@/lib/infrastructure/database/prisma';
-import { IndexingService } from '@/lib/core/indexing/service';
+import { ArticleCreator } from '@/lib/import/article-creator';
+import { IndexingScheduler } from '@/lib/import/indexing-scheduler';
 import { importFileForUser } from '@/lib/import/import-file';
 import { revalidatePath } from 'next/cache';
 
+/**
+ * 导入URL - 重构版
+ * 
+ * 改进点:
+ * 1. 使用统一的ArticleCreator创建文章
+ * 2. 使用IndexingScheduler异步索引
+ * 3. 简化错误处理
+ * 4. 添加结构化日志
+ */
 export async function importUrl(url: string, collectionId?: string) {
   const user = await requireUser();
   
+  console.log('[Import] Starting URL import', { url, userId: user.id, collectionId });
+
+  // 验证URL
   if (!url) {
     throw new Error('Missing URL');
   }
@@ -20,112 +33,107 @@ export async function importUrl(url: string, collectionId?: string) {
     throw new Error('Invalid URL format');
   }
 
-  // Validate collectionId is a valid UUID if present
+  // 验证collectionId
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const validCollectionId = collectionId && uuidRegex.test(collectionId) ? collectionId : null;
 
-  // Use Jina by default with enhanced options
-  const extracted = await extractFromUrl(url, { 
-    useJina: true,
-    aggressiveNoiseRemoval: true,
-    removeRecommendations: true,
-    cacheEnabled: true,
-  });
+  try {
+    // 1. 提取内容
+    console.log('[Import] Extracting content from URL');
+    const extracted = await extractFromUrl(url, { 
+      removeRecommendations: true,
+      cacheEnabled: true,
+    });
 
-  const domain = new URL(url).hostname;
-
-  const totalReadingTime = extracted.metadata?.readingTime || Math.ceil(extracted.content.length / 400);
-  const totalBlocks = extracted.content.split(/\n\s*\n/).filter(Boolean).length;
-
-  const article = await prisma.article.create({
-    data: {
+    console.log('[Import] Content extracted', {
       title: extracted.title,
-      url: url,
-      domain: domain,
+      contentLength: extracted.content.length,
+    });
+
+    // 2. 创建文章
+    const domain = new URL(url).hostname;
+    const { article, warnings } = await ArticleCreator.createOne({
+      title: extracted.title,
+      content: extracted.content,
+      url,
+      domain,
       userId: user.id,
       collectionId: validCollectionId,
       type: 'markdown',
-      totalBlocks: totalBlocks,
-      totalReadingTime: totalReadingTime,
-      body: {
-        create: {
-          content: extracted.content,
-          markdown: extracted.content,
-        }
+    });
+
+    console.log('[Import] Article created', { 
+      articleId: article.id,
+      warnings: warnings.length > 0 ? warnings : undefined,
+    });
+
+    // 3. 刷新缓存
+    revalidatePath('/');
+
+    // 4. 调度后台索引（不阻塞）
+    const jobId = await IndexingScheduler.schedule([article.id], user.id, 'URL');
+    console.log('[Import] Indexing scheduled', { jobId });
+
+    // 5. 返回结果
+    const { body: articleBody, ...rest } = article;
+    return {
+      success: true,
+      data: {
+        ...rest,
+        content: articleBody?.content,
+        jobId, // 返回jobId供前端查询进度
+        warnings: warnings.length > 0 ? warnings : undefined,
       }
-    },
-    include: {
-      body: true
-    }
-  });
-
-  revalidatePath('/');
-
-  // Trigger Indexing
-  // Trigger Indexing
-  try {
-    console.log(`[Indexing] Starting indexing for URL article ${article.id}...`);
-
-    let job;
-    try {
-      job = await prisma.job.create({
-        data: {
-          userId: user.id,
-          type: 'GENERATE_EMBEDDING',
-          status: 'PROCESSING',
-          payload: { articleIds: [article.id], source: 'URL' },
-          progress: 0
-        }
-      });
-    } catch (e) {
-      console.error('[Indexing] Failed to create job record', e);
-    }
-
-    try {
-      await IndexingService.processArticle(article.id, user.id);
-
-      if (job) {
-        await prisma.job.update({
-          where: { id: job.id },
-          data: {
-            status: 'COMPLETED',
-            progress: 100,
-            result: { processed: 1, total: 1 }
-          }
-        });
-      }
-      console.log(`[Indexing] Indexing finished for URL article ${article.id}`);
-    } catch (idxError) {
-      console.error(`[Indexing] Process failed for ${article.id}`, idxError);
-      if (job) {
-        await prisma.job.update({
-          where: { id: job.id },
-          data: {
-            status: 'FAILED',
-            result: { error: String(idxError) }
-          }
-        }).catch(() => { });
-      }
-    }
-  } catch (e) {
-    console.error(`[Indexing] catastrophic failure for ${article.id}`, e);
+    };
+  } catch (error) {
+    console.error('[Import] URL import failed', {
+      url,
+      userId: user.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
   }
-
-  const { body: articleBody, ...rest } = article;
-  return {
-    success: true,
-    data: {
-      ...rest,
-      content: articleBody?.content
-    }
-  };
 }
 
+/**
+ * 导入文件 - 保持简洁
+ */
 export async function importFile(filePath: string, originalName: string, fileType?: string) {
   const user = await requireUser();
+
+  console.log('[Import] Starting file import', { 
+    filePath, 
+    originalName, 
+    fileType,
+    userId: user.id,
+  });
 
   if (!filePath || !originalName) {
     throw new Error('Missing filePath or originalName');
   }
-  return importFileForUser({ userId: user.id, filePath, originalName, fileType });
+
+  try {
+    const result = await importFileForUser({ 
+      userId: user.id, 
+      filePath, 
+      originalName, 
+      fileType 
+    });
+
+    console.log('[Import] File import completed', {
+      collectionId: result.data.collection.id,
+      articlesCount: result.data.articlesCount,
+      totalChapters: result.data.totalChapters,
+    });
+
+    return result;
+  } catch (error) {
+    console.error('[Import] File import failed', {
+      filePath,
+      originalName,
+      userId: user.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 }

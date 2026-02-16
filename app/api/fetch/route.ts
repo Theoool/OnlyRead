@@ -14,17 +14,19 @@ export async function POST(req: Request) {
 
     let html = "";
     try {
-      const res = await fetch(url, {
+      const res = await fetch(`https://markdown.new/${url}`, {
         headers: {
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          Accept: "text/markdown,text/html",
         },
         cache: "no-store",
       });
       if (!res.ok) {
         throw new Error(`请求失败: ${res.status}`);
       }
+      console.log("Response status:", res);
+      
       html = await res.text();
     } catch (e) {
       return NextResponse.json(

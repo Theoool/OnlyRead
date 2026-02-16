@@ -58,81 +58,21 @@ export class ContentExtractionManager {
       }
     }
 
-    // 报告进度
-    options.onProgress?.({
-      stage: 'fetching',
-      progress: 10,
-      message: '正在获取内容...',
-      currentUrl: url,
-    });
-
     try {
-      // 1. 尝试使用 Jina（如果启用）
-      if (options.useJina !== false) {
-        const jinaExtractor = this.findExtractor('jina');
-        if (jinaExtractor?.supports(url)) {
-          try {
-            options.onProgress?.({
-              stage: 'parsing',
-              progress: 30,
-              message: '使用 Jina Reader 提取...',
-              currentUrl: url,
-            });
-
-            const result = await jinaExtractor.extract(url, options);
-            
-            options.onProgress?.({
-              stage: 'complete',
-              progress: 100,
-              message: '提取完成',
-              currentUrl: url,
-            });
-
-            // 缓存结果
-            if (options.cacheEnabled !== false && this.cache) {
-              await this.cache.set(cacheKey, result, options.cacheTtl);
-            }
-
-            return result;
-          } catch (error) {
-            console.warn('Jina Reader 失败，尝试本地提取:', error);
-          }
+      // 直接使用 markdown.new 提取器（最快）
+      const extractor = this.findExtractor('markdown');
+      if (extractor?.supports(url)) {
+        const result = await extractor.extract(url, options);
+        
+        // 异步缓存（不阻塞返回）
+        if (options.cacheEnabled !== false && this.cache) {
+          this.cache.set(cacheKey, result, options.cacheTtl).catch(() => {});
         }
+
+        return result;
       }
 
-      // 2. 获取 HTML
-      options.onProgress?.({
-        stage: 'fetching',
-        progress: 40,
-        message: '正在下载页面...',
-        currentUrl: url,
-      });
-
-      const html = await this.fetchHtml(url);
-
-      options.onProgress?.({
-        stage: 'parsing',
-        progress: 60,
-        message: '正在解析内容...',
-        currentUrl: url,
-      });
-
-      // 3. 使用本地提取器
-      const result = await this.extractFromHtml(html, url, options);
-
-      options.onProgress?.({
-        stage: 'complete',
-        progress: 100,
-        message: '提取完成',
-        currentUrl: url,
-      });
-
-      // 缓存结果
-      if (options.cacheEnabled !== false && this.cache) {
-        await this.cache.set(cacheKey, result, options.cacheTtl);
-      }
-
-      return result;
+      throw new Error('No suitable extractor found');
     } catch (error) {
       const extractionError: ExtractionError = {
         code: 'EXTRACTION_FAILED',
@@ -192,7 +132,7 @@ export class ContentExtractionManager {
   }
 
   /**
-   * 批量提取
+   * 批量提取（极速版）
    */
   async extractBatch(
     urls: string[],
@@ -202,46 +142,25 @@ export class ContentExtractionManager {
     const successful: ExtractedContent[] = [];
     const failed: Array<{ url: string; error: ExtractionError }> = [];
 
-    let completed = 0;
-    const total = urls.length;
-
     const results = await Promise.allSettled(
       urls.map((url) =>
-        this.limit(async () => {
-          try {
-            const result = await this.extractFromUrl(url, {
-              ...options,
-              onProgress: (progress) => {
-                options.onProgress?.({
-                  ...progress,
-                  progress: Math.floor(((completed + progress.progress / 100) / total) * 100),
-                });
-              },
-            });
-            completed++;
-            return { success: true, url, result };
-          } catch (error) {
-            completed++;
-            const extractionError: ExtractionError = {
-              code: 'EXTRACTION_FAILED',
-              message: error instanceof Error ? error.message : String(error),
-              url,
-              originalError: error instanceof Error ? error : undefined,
-            };
-            return { success: false, url, error: extractionError };
-          }
-        })
+        this.limit(() => this.extractFromUrl(url, options))
       )
     );
 
-    for (const result of results) {
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
       if (result.status === 'fulfilled') {
-        const value = result.value;
-        if (value.success) {
-          successful.push(value.result);
-        } else {
-          failed.push({ url: value.url, error: value.error });
-        }
+        successful.push(result.value);
+      } else {
+        failed.push({
+          url: urls[i],
+          error: {
+            code: 'EXTRACTION_FAILED',
+            message: result.reason?.message || 'Unknown error',
+            url: urls[i],
+          },
+        });
       }
     }
 
@@ -254,41 +173,10 @@ export class ContentExtractionManager {
   }
 
   /**
-   * 获取 HTML
-   */
-  private async fetchHtml(url: string): Promise<string> {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'DNT': '1',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-      },
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    return response.text();
-  }
-
-  /**
-   * 生成缓存键
+   * 生成缓存键（简化版）
    */
   private getCacheKey(url: string, options: ExtractionOptions): string {
-    const optionsHash = JSON.stringify({
-      minContentLength: options.minContentLength,
-      aggressiveNoiseRemoval: options.aggressiveNoiseRemoval,
-      preserveComments: options.preserveComments,
-      preserveRelated: options.preserveRelated,
-      convertToMarkdown: options.convertToMarkdown,
-    });
-    return `${url}:${optionsHash}`;
+    return options.removeRecommendations ? `${url}:clean` : url;
   }
 
   /**

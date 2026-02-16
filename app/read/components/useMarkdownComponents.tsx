@@ -106,7 +106,8 @@ const highlightChildren = (
   }
 
   if (React.isValidElement(children)) {
-    const { children: nestedChildren, ...props } = children.props;
+    const childProps = children.props as { children?: ReactNode; [key: string]: unknown };
+    const { children: nestedChildren, ...props } = childProps;
     return React.cloneElement(
       children,
       props,
@@ -281,7 +282,8 @@ export const useMarkdownComponents = ({
         const codeElement = React.Children.toArray(children)[0] as React.ReactElement;
         if (!codeElement?.props) return <pre>{children}</pre>;
 
-        const { className, children: codeContent } = codeElement.props;
+        const codeProps = codeElement.props as { className?: string; children?: ReactNode };
+        const { className, children: codeContent } = codeProps;
         const match = /language-(\w+)/.exec(className || '');
         const language = match?.[1] || 'text';
 

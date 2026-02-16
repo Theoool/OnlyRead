@@ -4,6 +4,7 @@ import {
   AppError,
   
 } from './index';
+import { serializeBigInt } from '@/lib/utils/bigint-serializer';
 
 /**
  * Unified Error Response Formatter
@@ -77,7 +78,10 @@ export function apiHandler(
 
 /**
  * Success response helper
+ * 自动处理 BigInt 序列化问题
  */
 export function createSuccessResponse<T>(data: T, status: number = 200) {
-  return NextResponse.json(data, { status });
+  // 序列化 BigInt 为字符串，避免 JSON.stringify 错误
+  const serializedData = serializeBigInt(data);
+  return NextResponse.json(serializedData, { status });
 }

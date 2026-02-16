@@ -31,7 +31,7 @@ export async function POST(req: Request) {
       query: question,
       userId: user.id,
       topK,
-      filter: {
+      filter: { 
         articleIds,
         collectionId
       }

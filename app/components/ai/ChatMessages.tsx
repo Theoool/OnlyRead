@@ -63,7 +63,7 @@ const AssistantMessage = memo(function AssistantMessage({
 
       {message.ui && message.ui.type !== 'explanation' && (
         <div className="pl-2 border-l-2 border-indigo-500/30">
-          <RenderEngine component={message.ui} onAction={onEngineAction} />
+          <RenderEngine component={message.ui} onAction={onEngineAction!} />
         </div>
       )}
 
@@ -164,7 +164,7 @@ export const ChatMessages = memo(function ChatMessages({
         )}
 
         {messages.map((msg) => {
-          const isUser = msg.role === 'USER' || msg.role === 'user';
+          const isUser = msg.role === 'USER';
           return (
             <motion.div
               key={msg.id}

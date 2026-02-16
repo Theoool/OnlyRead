@@ -18,7 +18,9 @@ export { ContentExtractionManager } from './core/extraction-manager';
 
 // 服务端提取器
 export { ServerExtractor, serverExtractor } from './extractors/server-extractor';
-export { JinaExtractor, jinaExtractor } from './extractors/jina-extractor';
+export { MarkdownNewExtractor, markdownNewExtractor } from './extractors/jina-extractor';
+// 向后兼容
+export { markdownNewExtractor as jinaExtractor, MarkdownNewExtractor as JinaExtractor } from './extractors/jina-extractor';
 
 // 过滤器
 export { NoiseFilter, noiseFilter } from './filters/noise-filter';
@@ -36,12 +38,12 @@ export { MemoryCacheStrategy, createCacheStrategy } from './cache/cache-strategy
 
 import { ContentExtractionManager } from './core/extraction-manager';
 import { serverExtractor } from './extractors/server-extractor';
-import { jinaExtractor } from './extractors/jina-extractor';
+import { markdownNewExtractor } from './extractors/jina-extractor';
 import { createCacheStrategy } from './cache/cache-strategy';
 import type { ExtractionOptions } from './core/types';
 
 /**
- * 创建服务端内容提取器
+ * 创建服务端内容提取器（极速版）
  * 适用于 Node.js 环境
  */
 export function createServerExtractor(options?: {
@@ -52,9 +54,9 @@ export function createServerExtractor(options?: {
 }) {
   const {
     enableCache = true,
-    maxCacheSize = 200,
-    cacheTtl = 3600000,
-    maxConcurrency = 10,
+    maxCacheSize = 500,
+    cacheTtl = 7200000, // 2小时
+    maxConcurrency = 20, // 提高并发
   } = options || {};
 
   const cache = enableCache
@@ -65,7 +67,7 @@ export function createServerExtractor(options?: {
     : undefined;
 
   const manager = new ContentExtractionManager(
-    [jinaExtractor, serverExtractor],
+    [markdownNewExtractor, serverExtractor],
     cache,
     maxConcurrency
   );

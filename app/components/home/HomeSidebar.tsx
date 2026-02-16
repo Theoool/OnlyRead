@@ -15,12 +15,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useAuthStore } from "@/lib/store/useAuthStore";
-import { useFileImport } from "@/lib/hooks/home/useFileImport";
 import { isUrl } from "@/lib/utils";
 import { SearchBar } from "@/app/components/SearchBar";
 import { QuickStats } from "./QuickStats";
 import { useIsMobile } from "@/lib/hooks/use-device";
 import { useImportManager } from "@/lib/hooks/home/useImportManager";
+import { ImportProgressDisplay } from "@/app/components/import/import-progress-display";
 
 interface HomeSidebarProps {
   onSuccess?: (mode: 'articles' | 'collections') => void;
@@ -39,9 +39,9 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
     importFile, 
     importFromUrl, 
     importFromText, 
-    state,
     isLoading,
     error: importError,
+    jobId,
   } = useImportManager({ 
     userId: user?.id, 
     onSuccess: (result) => {
@@ -319,23 +319,6 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
                   </motion.div>
                 )}
               </AnimatePresence>
-              
-              {/* Progress Message */}
-              <AnimatePresence>
-                {state.message && state.status !== 'idle' && state.status !== 'error' && (
-                  <motion.div
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    className={twMerge(
-                      "flex items-center gap-2 text-blue-500 font-mono bg-blue-50 dark:bg-blue-900/20 rounded",
-                      isMobile ? "text-xs px-2.5 py-1.5" : "text-xs px-2 py-1"
-                    )}
-                  >
-                    <span>{state.message} ({state.progress}%)</span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
 
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -397,6 +380,26 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
           </div>
         </motion.div>
       </div>
+
+      {/* 进度显示组件 */}
+      {jobId && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 10 }}
+          className="mt-6"
+        >
+          <ImportProgressDisplay
+            jobId={jobId}
+            onComplete={() => {
+              console.log('导入完成');
+            }}
+            onError={(error) => {
+              console.error('导入失败:', error);
+            }}
+          />
+        </motion.div>
+      )}
 
       <motion.footer
         initial={{ opacity: 0 }}

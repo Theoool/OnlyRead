@@ -2,7 +2,6 @@ import { useRef, useEffect, useMemo, createContext } from "react";
 import { ConceptData } from "@/lib/store/useConceptStore";
 import { SentenceRenderer } from "./SentenceRenderer";
 import { useCenteredScroll } from "../hooks/useScrollOptimization";
-import { usePerformanceMonitor } from "../hooks/usePerformanceMonitor";
 
 // 创建高亮上下文
 interface HighlightContextType {

@@ -43,10 +43,12 @@ export class SessionService {
   }
 
   static async addMessage(sessionId: string, role: 'user' | 'assistant', content: string, metadata?: { ui?: any, sources?: any }) {
+    // Convert role to Prisma enum format
+    const prismaRole = role === 'user' ? 'USER' : 'ASSISTANT';
     return prisma.learningMessage.create({
       data: {
         sessionId,
-        role,
+        role: prismaRole,
         content,
         ui: metadata?.ui ?? Prisma.JsonNull,
         sources: metadata?.sources ?? Prisma.JsonNull

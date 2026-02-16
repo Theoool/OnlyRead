@@ -19,6 +19,7 @@ export interface LocalBook {
   cloudCollectionId?: string; // 同步后的云端收藏集 ID
   syncError?: string;
   syncProgress?: number; // 0-100
+  jobId?: string; // 用于追踪导入进度
 }
 
 const db = new Dexie('AntiAiReaderDB') as Dexie & {

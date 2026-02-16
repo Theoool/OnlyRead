@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/infrastructure/database/prisma';
-import { MessageRole } from '@/lib/generated/prisma';
+import { MessageRole, Prisma } from '@/lib/generated/prisma';
 
 export interface CreateMessageInput {
   sessionId: string;
@@ -23,8 +23,8 @@ export class MessageRepository {
         sessionId: data.sessionId,
         role: data.role,
         content: data.content,
-        ui: data.ui || null,
-        sources: data.sources || null,
+        ui: data.ui ,
+        sources: data.sources,
         metadata: data.metadata || {},
       },
     });
@@ -82,8 +82,8 @@ export class MessageRepository {
         sessionId: m.sessionId,
         role: m.role,
         content: m.content,
-        ui: m.ui || null,
-        sources: m.sources || null,
+        ui: m.ui ?? Prisma.JsonNull,
+        sources: m.sources ? m.sources : Prisma.JsonNull,
         metadata: m.metadata || {},
       })),
     });

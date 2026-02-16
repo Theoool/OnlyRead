@@ -30,7 +30,7 @@ export const CopilotWidget = memo(function CopilotWidget({
   onEngineAction,
 }: CopilotWidgetProps) {
   const { data: session, isLoading: sessionLoading } = useSession(sessionId);
-  const { messages, sendMessage, isStreaming } = useChat({ sessionId });
+  const { messages, sendMessage, isStreaming   } = useChat({ sessionId });
 
   const handleEngineAction = useCallback(
     (action: string, value?: any) => {

@@ -1,55 +1,52 @@
 /**
- * Jina Reader 提取器 - 使用 Jina AI 的在线服务
- * 支持服务端和客户端
+ * Markdown.new 提取器 - 使用 markdown.new 的快速服务
+ * 比 Jina 更快、更稳定
  */
 
 import type { IContentExtractor, ExtractedContent, ExtractionOptions } from '../core/types';
 import { noiseFilter } from '../filters/noise-filter';
 
-export class JinaExtractor implements IContentExtractor {
+export class MarkdownNewExtractor implements IContentExtractor {
   priority = 20; // 优先级高于本地提取
 
   supports(input: string | Document): boolean {
-    // Jina 支持 URL 字符串
     return typeof input === 'string' && this.isValidUrl(input);
   }
 
   async extract(input: string | Document, options: ExtractionOptions = {}): Promise<ExtractedContent> {
     if (typeof input !== 'string' || !this.isValidUrl(input)) {
-      throw new Error('JinaExtractor only supports valid URL strings');
+      throw new Error('MarkdownNewExtractor only supports valid URL strings');
     }
 
     const url = input;
-    const jinaUrl = `https://r.jina.ai/${url}`;
+    const markdownNewUrl = `https://markdown.new/${url}`;
 
-    const response = await fetch(jinaUrl, {
+    const response = await fetch(markdownNewUrl, {
       headers: {
-        'Accept': 'text/markdown',
-        'User-Agent': 'Mozilla/5.0 (compatible; ContentExtractor/2.0)',
+        'Accept': 'text/markdown,text/html',
+        'User-Agent': 'Mozilla/5.0 (compatible; ContentExtractor/3.0)',
       },
-      cache: 'no-store',
+      signal: AbortSignal.timeout(10000), // 10秒超时
     });
 
     if (!response.ok) {
-      throw new Error(`Jina Reader error: ${response.status} ${response.statusText}`);
+      throw new Error(`Markdown.new error: ${response.status} ${response.statusText}`);
     }
 
     let markdown = await response.text();
 
-    // 智能提取标题
-    const title = this.extractTitleFromMarkdown(markdown, url);
+    // 快速提取标题
+    const title = this.extractTitle(markdown, url);
 
-    // 清理 Jina 添加的元数据
-    markdown = this.cleanJinaMetadata(markdown);
+    // 轻量级清理
+    markdown = this.quickClean(markdown);
 
-    // 应用后处理
-    markdown = noiseFilter.postProcessText(markdown);
-
+    // 最小化后处理
     if (options.removeRecommendations) {
       markdown = this.removeRecommendations(markdown);
     }
 
-    const metadata = this.generateMetadata(markdown);
+    const metadata = this.quickMetadata(markdown);
 
     return {
       title,
@@ -72,129 +69,66 @@ export class JinaExtractor implements IContentExtractor {
   }
 
   /**
-   * 从 Markdown 中提取标题
+   * 快速提取标题
    */
-  private extractTitleFromMarkdown(markdown: string, url: string): string {
-    // 尝试提取 H1
+  private extractTitle(markdown: string, url: string): string {
     const h1Match = markdown.match(/^#\s+(.+)$/m);
     if (h1Match) return h1Match[1].trim();
 
-    // 尝试提取任何标题
     const headingMatch = markdown.match(/^#{1,6}\s+(.+)$/m);
     if (headingMatch) return headingMatch[1].trim();
 
-    // 使用第一段
-    const firstParagraph = markdown.split('\n\n')[0]?.replace(/[#*`]/g, '').trim();
-    if (firstParagraph && firstParagraph.length > 10) {
-      return firstParagraph.slice(0, 100) + (firstParagraph.length > 100 ? '...' : '');
-    }
-
-    // 从 URL 生成标题
     try {
       const urlObj = new URL(url);
-      const path = urlObj.pathname.replace(/\/$/, '').split('/').pop();
-      if (path) {
-        return decodeURIComponent(path)
-          .replace(/[-_]/g, ' ')
-          .replace(/\b\w/g, c => c.toUpperCase());
-      }
-      return urlObj.hostname.replace('www.', '').split('.')[0];
+      return urlObj.hostname.replace('www.', '');
     } catch {
-      return `文章 ${new Date().toLocaleDateString()}`;
+      return 'Untitled';
     }
   }
 
   /**
-   * 清理 Jina 元数据
+   * 快速清理
    */
-  private cleanJinaMetadata(markdown: string): string {
+  private quickClean(markdown: string): string {
     return markdown
-      .replace(/^Title:.*$/m, '')
-      .replace(/^URL Source:.*$/m, '')
-      .replace(/^Markdown Content:.*$/m, '')
-      .replace(/^\s*-\s*$/gm, '')
+      .replace(/^(Title|URL Source|Markdown Content):.*$/gm, '')
+      .replace(/\n{3,}/g, '\n\n')
       .trim();
   }
 
   /**
-   * 移除推荐内容
+   * 移除推荐内容（简化版）
    */
   private removeRecommendations(markdown: string): string {
-    const patterns = [
-      /推荐阅读[^\n]*/g,
-      /相关文章[^\n]*/g,
-      /更多精彩[^\n]*/g,
-      /关注公众号[^\n]*/g,
-      /扫码关注[^\n]*/g,
-      /点击原文[^\n]*/g,
-      /分享到：[^\n]*/g,
-      /本文首发于[^\n]*/g,
-      /转载请注明[^\n]*/g,
-      /商业转载[^\n]*/g,
-      /Recommended for you[^\n]*/gi,
-      /Related articles[^\n]*/gi,
-      /Share this[^\n]*/gi,
-      /Follow us[^\n]*/gi,
-      /Subscribe to[^\n]*/gi,
-    ];
-
-    let cleaned = markdown;
-    patterns.forEach(pattern => {
-      cleaned = cleaned.replace(pattern, '');
-    });
-
-    return cleaned.replace(/\n{3,}/g, '\n\n').trim();
+    return markdown
+      .replace(/推荐阅读[^\n]*/g, '')
+      .replace(/相关文章[^\n]*/g, '')
+      .replace(/Recommended for you[^\n]*/gi, '')
+      .replace(/Related articles[^\n]*/gi, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   }
 
   /**
-   * 生成元数据
+   * 快速元数据生成
    */
-  private generateMetadata(markdown: string): ExtractedContent['metadata'] {
-    const chineseChars = (markdown.match(/[\u4e00-\u9fa5]/g) || []).length;
-    const englishWords = (markdown.match(/[a-zA-Z]+/g) || []).length;
-    const wordCount = chineseChars + englishWords;
-
-    const readingTimeMinutes = Math.ceil((chineseChars / 400) + (englishWords / 200));
-
-    const imageCount = (markdown.match(/!\[([^\]]*)\]\(([^)]+)\)/g) || []).length;
-    const linkCount = (markdown.match(/\[([^\]]+)\]\(([^)]+)\)/g) || []).length;
-    const codeBlockCount = (markdown.match(/```[\s\S]*?```/g) || []).length;
+  private quickMetadata(markdown: string): ExtractedContent['metadata'] {
+    const length = markdown.length;
+    const readingTime = Math.max(1, Math.ceil(length / 500));
 
     return {
-      wordCount,
-      readingTime: readingTimeMinutes,
-      imageCount,
-      linkCount,
-      codeBlockCount,
-      sourceQuality: this.assessQuality(markdown),
+      wordCount: length,
+      readingTime,
       extractedAt: Date.now(),
-      extractionMethod: 'jina',
+      extractionMethod: 'markdown.new',
     };
-  }
-
-  /**
-   * 评估质量
-   */
-  private assessQuality(markdown: string): 'high' | 'medium' | 'low' {
-    let score = 0;
-
-    if (/^#{1,6}\s/.test(markdown)) score += 2;
-    if (/```/.test(markdown)) score += 1;
-    if (/^\s*[-*+]\s/.test(markdown) || /^\s*\d+\.\s/.test(markdown)) score += 1;
-    if (/^>/.test(markdown)) score += 1;
-    if (/!\[/.test(markdown)) score += 1;
-    if (markdown.length > 2000) score += 2;
-    else if (markdown.length > 1000) score += 1;
-
-    const paragraphs = markdown.split('\n\n').filter(p => p.trim().length > 0);
-    if (paragraphs.length > 3) score += 1;
-
-    if (score >= 7) return 'high';
-    if (score >= 4) return 'medium';
-    return 'low';
   }
 }
 
 // 导出单例
-export const jinaExtractor = new JinaExtractor();
+export const markdownNewExtractor = new MarkdownNewExtractor();
+
+// 保持向后兼容
+export const jinaExtractor = markdownNewExtractor;
+export { MarkdownNewExtractor as JinaExtractor };
 

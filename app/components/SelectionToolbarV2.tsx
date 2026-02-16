@@ -19,7 +19,7 @@ const QUICK_PROMPTS = [
 export function SelectionToolbarV2({ onActivate, disabled, onAskAi }: SelectionToolbarProps) {
   const [selection, setSelection] = useState<{ text: string; rect: DOMRect } | null>(null);
   const [showQuickPrompts, setShowQuickPrompts] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<any>({});
   const toolbarRef = useRef<HTMLDivElement>(null);
 
   const handleSelectionChange = useCallback(() => {
@@ -42,7 +42,7 @@ export function SelectionToolbarV2({ onActivate, disabled, onAskAi }: SelectionT
         if (element && (
           element.tagName === 'INPUT' ||
           element.tagName === 'TEXTAREA' ||
-          element.isContentEditable ||
+         
           element.closest('input, textarea, [contenteditable="true"]')
         )) {
           setSelection(null);
