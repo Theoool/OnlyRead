@@ -52,8 +52,15 @@ export async function syncLocalBookToCloud(
     await updateProgress('uploading', 10);
 
     const supabase = createClient();
-    const sanitizedFileName = file.name.replace(/[^\x00-\x7F]/g, "").replace(/\s+/g, "_");
-    const safeFileName = sanitizedFileName || 'upload';
+    
+    // 提取文件扩展名
+    const fileExt = file.name.match(/\.[^.]+$/)?.[0] || '';
+    
+    // 清理文件名（保留扩展名）
+    const nameWithoutExt = file.name.replace(/\.[^.]+$/, '');
+    const sanitizedFileName = nameWithoutExt.replace(/[^\x00-\x7F]/g, "").replace(/\s+/g, "_");
+    const safeFileName = (sanitizedFileName || 'upload') + fileExt;
+    
     const filePath = `${userId}/${Date.now()}_${safeFileName}`;
 
     // 2. 上传到 Supabase Storage

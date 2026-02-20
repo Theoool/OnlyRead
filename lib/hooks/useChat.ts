@@ -16,6 +16,10 @@ export interface ChatMessage extends Message {
 interface UseChatOptions {
   sessionId: string;
   onError?: (error: Error) => void;
+  context?: {
+    articleIds: string[];
+    collectionId?: string;
+  };
 }
 
 const generateMessageId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -41,7 +45,7 @@ const createAssistantMessage = (content: string, overrides?: Partial<ChatMessage
  * useChat - 聊天功能 Hook
  * 负责消息发送、流式响应处理、状态管理
  */
-export function useChat({ sessionId, onError }: UseChatOptions) {
+export function useChat({ sessionId, onError, context }: UseChatOptions) {
   const queryClient = useQueryClient();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -239,7 +243,10 @@ export function useChat({ sessionId, onError }: UseChatOptions) {
           onDone: () => {
             // 流式响应完成
           },
-        }, options);
+        }, {
+          ...options,
+          context,
+        });
 
         // 添加最终消息
         if (finalResponse) {
@@ -270,7 +277,7 @@ export function useChat({ sessionId, onError }: UseChatOptions) {
         onError?.(error as Error);
       }
     },
-    [sessionId, isStreaming, queryClient, scheduleTypewriter, stopTypewriter, onError]
+    [sessionId, isStreaming, queryClient, scheduleTypewriter, stopTypewriter, onError, context]
   );
 
   // 显示的消息列表

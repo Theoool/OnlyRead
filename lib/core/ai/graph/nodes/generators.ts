@@ -651,9 +651,27 @@ ${SAFETY_CONSTRAINTS}
 
 ${contextData}
 
-请严格基于以下文档事实出题。
+请严格基于以上文档事实出题。
 
-仅返回一个匹配 'interactive_quiz' 结构的有效 JSON 对象。`;
+重要：只返回一个匹配 'interactive_quiz' 结构的有效 JSON 对象：
+{
+  "type": "interactive_quiz",
+  "questions": [
+    {
+      "id": "q1",
+      "question": "问题内容？",
+      "options": [
+        { "id": "a", "text": "选项A", "isCorrect": false },
+        { "id": "b", "text": "选项B", "isCorrect": true },
+        { "id": "c", "text": "选项C", "isCorrect": false },
+        { "id": "d", "text": "选项D", "isCorrect": false }
+      ],
+      "explanation": "正确答案是B，因为...",
+      "hint": "提示：考虑..."
+    }
+  ],
+  "showExplanationOnWrong": true
+}`;
 
   return executeNode(state, {
     name: 'quiz',

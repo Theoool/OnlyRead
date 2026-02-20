@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/infrastructure/database/prisma'
 import { NextResponse } from 'next/server'
-import { devCache, cacheKeys } from '@/lib/infrastructure/cache/dev-cache'
+import { devCache, cacheKeys } from '@/lib/infrastructure/cache'
 
 // GET - Fetch overall learning statistics
 export async function GET(req: Request) {

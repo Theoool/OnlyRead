@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useIsMobile } from "@/lib/hooks/use-device";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 
 interface HomeLayoutProps {
   children: React.ReactNode;
@@ -26,40 +26,58 @@ export function HomeLayout({ children }: HomeLayoutProps) {
     return (
       <div className="h-screen w-full flex flex-col bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-50 font-sans overflow-hidden">
         {/* 移动端标签栏 */}
-        <div className="flex-none h-14 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-around bg-white dark:bg-black px-2 z-20">
-          <button
-            onClick={() => setActiveTab('input')}
-            className={`flex-1 h-full flex items-center justify-center text-base font-medium transition-all border-b-2 active:scale-95 touch-manipulation ${
-              activeTab === 'input'
-                ? 'border-zinc-900 dark:border-zinc-100 text-zinc-900 dark:text-zinc-100'
-                : 'border-transparent text-zinc-400'
-            }`}
-          >
-            阅读
-          </button>
-          <button
-            onClick={() => setActiveTab('content')}
-            className={`flex-1 h-full flex items-center justify-center text-base font-medium transition-all border-b-2 active:scale-95 touch-manipulation ${
-              activeTab === 'content'
-                ? 'border-zinc-900 dark:border-zinc-100 text-zinc-900 dark:text-zinc-100'
-                : 'border-transparent text-zinc-400'
-            }`}
-          >
-            记录
-          </button>
-        </div>
+        <LayoutGroup>
+          <div className="flex-none h-16 border-b border-zinc-200 dark:border-zinc-800 flex items-center bg-white dark:bg-black z-20 relative">
+            <div className="flex w-full px-4 gap-2">
+              <button
+                onClick={() => setActiveTab('input')}
+                className={`flex-1 h-12 flex items-center justify-center text-base font-semibold transition-colors rounded-xl touch-manipulation relative ${
+                  activeTab === 'input'
+                    ? 'text-zinc-900 dark:text-zinc-100'
+                    : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+                }`}
+              >
+                <span className="relative z-10">阅读</span>
+                {activeTab === 'input' && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute inset-0 bg-zinc-100 dark:bg-zinc-900 rounded-xl"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('content')}
+                className={`flex-1 h-12 flex items-center justify-center text-base font-semibold transition-colors rounded-xl touch-manipulation relative ${
+                  activeTab === 'content'
+                    ? 'text-zinc-900 dark:text-zinc-100'
+                    : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+                }`}
+              >
+                <span className="relative z-10">记录</span>
+                {activeTab === 'content' && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute  inset-0 bg-zinc-100 dark:bg-zinc-900 rounded-xl"
+                    transition={{ type: "spring", bounce: 0.3, duration: 0.6 }}
+                  />
+                )}
+              </button>
+            </div>
+          </div>
+        </LayoutGroup>
 
         {/* 内容区域 */}
-        <main className="flex-1 overflow-hidden relative">
+        <main className="flex-1 relative overflow-hidden">
           <AnimatePresence mode="wait">
             {activeTab === 'input' && childrenArray[0] && (
               <motion.div
                 key="input"
-                initial={{ opacity: 0, x: -20 }}
+                initial={{ opacity: 0, x: -30 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
-                className="absolute inset-0"
+                exit={{ opacity: 0, x: -30 }}
+                transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+                className="absolute inset-0 overflow-y-auto"
               >
                 {childrenArray[0]}
               </motion.div>
@@ -67,11 +85,11 @@ export function HomeLayout({ children }: HomeLayoutProps) {
             {activeTab === 'content' && childrenArray[1] && (
               <motion.div
                 key="content"
-                initial={{ opacity: 0, x: 20 }}
+                initial={{ opacity: 0, x: 30 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.2 }}
-                className="absolute inset-0"
+                exit={{ opacity: 0, x: 30 }}
+                transition={{ type: "spring", bounce: 0.1, duration: 0.4 }}
+                className="absolute inset-0 overflow-y-auto"
               >
                 {childrenArray[1]}
               </motion.div>

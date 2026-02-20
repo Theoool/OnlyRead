@@ -21,7 +21,7 @@ import { revalidatePath } from 'next/cache';
 import { processFileOnServer } from '@/lib/server/file-processor-server';
 import { ArticleCreator } from './article-creator';
 import { IndexingScheduler } from './indexing-scheduler';
-import type { ProcessedBook } from '@/lib/integration/file-processor-bridge';
+import type { ProcessedBook } from '@/lib/types/processed-book';
 import { ContentProcessor } from './content-processor';
 
 export interface ImportFileParams {
@@ -201,6 +201,8 @@ function validateParams(filePath: string, originalName: string, userId: string):
 
   // 验证文件类型
   const supportedExtensions = ['.epub', '.pdf', '.txt', '.md'];
+  console.log('supportedExtensions', originalName);
+  
   const ext = originalName.toLowerCase().match(/\.[^.]+$/)?.[0];
   if (!ext || !supportedExtensions.includes(ext)) {
     throw new Error(`不支持的文件类型: ${ext}。支持的类型: ${supportedExtensions.join(', ')}`);

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/infrastructure/database/prisma'
 import { NextResponse } from 'next/server'
-import { apiHandler, createSuccessResponse } from '@/lib/infrastructure/api/response'
+import { apiHandler, createSuccessResponse } from '@/lib/infrastructure/error/response'
 import { requireUserFromHeader } from '@/lib/supabase/user'
 
 // POST - Batch import articles (for migration)

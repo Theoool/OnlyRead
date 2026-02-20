@@ -3,7 +3,7 @@
 import { requireUser } from './utils';
 import { ArticlesRepository } from '@/lib/core/reading/articles.repository';
 import { ArticleSchema, ArticleUpdateSchema } from '@/lib/shared/validation/schemas';
-import { devCache } from '@/lib/infrastructure/cache/dev-cache';
+import { devCache } from '@/lib/infrastructure/cache';
 import { IndexingService } from '@/lib/core/indexing/service';
 import { prisma } from '@/lib/infrastructure/database/prisma';
 import { revalidatePath } from 'next/cache';

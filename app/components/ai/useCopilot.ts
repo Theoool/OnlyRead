@@ -10,7 +10,7 @@ export interface SuggestedAction {
 
 export interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'USER' | 'ASSISTANT';
   content: string;
   ui?: any;
   sources?: any[];
@@ -29,7 +29,7 @@ export interface CopilotDebugState {
   errors: Array<{ message: string; detail?: string; at: number }>
 }
 
-interface ChatHookOptions {
+export interface ChatHookOptions {
   sessionId?: string;
   mode: 'qa' | 'tutor' | 'copilot';
   context?: {
@@ -79,7 +79,6 @@ export function useCopilot({ sessionId, mode, context }: ChatHookOptions) {
 
   // Sliding window configuration
   const MAX_HISTORY_ROUNDS = 10; // Keep last 10 rounds (20 messages)
-  const SUMMARY_THRESHOLD = 10;  // Generate summary when exceeding this threshold
 
   const toWireMessages = (
     history?: Array<{ role: string; content?: string; ui?: any }>,
@@ -95,7 +94,7 @@ export function useCopilot({ sessionId, mode, context }: ChatHookOptions) {
 
     const messages = processedHistory
       .map((m: any) => {
-        const role = m?.role === 'assistant' ? 'assistant' : 'user';
+        const role = m?.role === 'ASSISTANT' ? 'assistant' : 'user';
         const content =
           typeof m?.content === 'string'
             ? m.content
@@ -141,7 +140,7 @@ export function useCopilot({ sessionId, mode, context }: ChatHookOptions) {
         }))
         setCurrentResponse({
             id: 'streaming-' + Date.now(),
-            role: 'assistant',
+            role: 'ASSISTANT',
             content: '',
             ui: { type: 'explanation', content: '' },
             createdAt: new Date().toISOString()

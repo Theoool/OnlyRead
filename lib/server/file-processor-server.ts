@@ -5,7 +5,7 @@
  */
 
 import { FileParser } from '@/lib/file-parser';
-import { ProcessedBook, ProcessedChapter } from '@/lib/integration/file-processor-bridge';
+import { ProcessedBook, ProcessedChapter } from '@/lib/types/processed-book';
 
 /**
  * 服务端文件处理器

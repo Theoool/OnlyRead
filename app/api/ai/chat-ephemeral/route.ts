@@ -9,7 +9,7 @@ const ChatRequestSchema = z.object({
   message: z.string().min(1, 'Message is required'),
   context: z.string().optional(),
   history: z.array(z.object({
-    role: z.enum(['user', 'assistant', 'system']),
+    role: z.enum(['user', 'assistant', 'system', 'USER', 'ASSISTANT', 'SYSTEM']).transform(val => val.toLowerCase()),
     content: z.string()
   })).optional()
 });

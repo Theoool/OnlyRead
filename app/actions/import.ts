@@ -8,15 +8,7 @@ import { IndexingScheduler } from '@/lib/import/indexing-scheduler';
 import { importFileForUser } from '@/lib/import/import-file';
 import { revalidatePath } from 'next/cache';
 
-/**
- * 导入URL - 重构版
- * 
- * 改进点:
- * 1. 使用统一的ArticleCreator创建文章
- * 2. 使用IndexingScheduler异步索引
- * 3. 简化错误处理
- * 4. 添加结构化日志
- */
+
 export async function importUrl(url: string, collectionId?: string) {
   const user = await requireUser();
   

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getOrCreateUser } from '@/lib/supabase/user';
-import { apiHandler, createSuccessResponse } from '@/lib/infrastructure/api/response';
+import { apiHandler, createSuccessResponse } from '@/lib/infrastructure/error/response';
 import { ArticlesRepository } from '@/lib/core/reading/articles.repository';
 import { UnauthorizedError, ValidationError } from '@/lib/infrastructure/error';
 import { z } from 'zod';

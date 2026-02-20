@@ -26,35 +26,66 @@ export function useHomeData({ initialArticles, initialCollections }: UseHomeData
   const loadMoreArticles = () => setDisplayLimit(prev => prev + 20);
   const hasMoreArticles = displayedArticles.length < sortedArticles.length;
 
-  // Collections Data
+ 
   const { data: collections = [], isLoading: isLoadingCollections } = useCollections();
   const effectiveCollections = collections.length > 0 ? collections : (initialCollections || []);
 
   const localBooks = useLiveQuery(() => db.books.toArray()) || [];
 
   const sortedCollections = useMemo(() => {
-    const remote = effectiveCollections.map((c) => ({ ...c, isLocal: false }));
-    const remoteIds = new Set(remote.map(c => c.id));
+    // 创建书名到书籍的映射
+    const booksByTitle = new Map<string, any>();
     
-    // Identify remote collections that also exist locally
-    const localIds = new Set(localBooks.map(b => b.id));
-    const remoteWithLocalFlag = remote.map(c => ({
-      ...c,
-      hasLocalCopy: localIds.has(c.id)
-    }));
+    // 先处理远程书籍
+    effectiveCollections.forEach((c) => {
+      const normalizedTitle = c.title.trim().toLowerCase();
+      booksByTitle.set(normalizedTitle, {
+        ...c,
+        isLocal: false,
+        hasLocalCopy: false,
+        localId: undefined,
+        cloudId: c.id,
+      });
+    });
     
-    const local = localBooks
-      .filter(b => !remoteIds.has(b.id))
-      .map(b => ({
-        id: b.id,
-        title: b.title,
-        updatedAt: new Date(b.addedAt).toISOString(),
-        _count: { articles: 1 },
-        isLocal: true,
-        hasLocalCopy: true,
-        format: b.format
-      }));
-    return [...remoteWithLocalFlag, ...local].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    // 再处理本地书籍
+    localBooks.forEach((b) => {
+      const normalizedTitle = b.title.trim().toLowerCase();
+      const existing = booksByTitle.get(normalizedTitle);
+      
+      if (existing) {
+        // 同名书籍存在，合并信息
+        existing.hasLocalCopy = true;
+        existing.localId = b.id;
+        // 如果远程书籍更新时间早于本地，使用本地时间
+        if (b.addedAt) {
+          const localTime = typeof b.addedAt === 'number' ? b.addedAt : new Date(b.addedAt).getTime();
+          const remoteTime = new Date(existing.updatedAt).getTime();
+          if (!isNaN(localTime) && !isNaN(remoteTime) && localTime > remoteTime) {
+            existing.updatedAt = new Date(localTime).toISOString();
+          }
+        }
+      } else {
+        // 纯本地书籍
+        const addedTime = b.addedAt || Date.now();
+        booksByTitle.set(normalizedTitle, {
+          id: b.id,
+          title: b.title,
+          updatedAt: new Date(addedTime).toISOString(),
+          _count: { articles: 1 },
+          isLocal: true,
+          hasLocalCopy: true,
+          localId: b.id,
+          cloudId: undefined,
+          format: b.format
+        });
+      }
+    });
+    
+    // 转换为数组并排序
+    return Array.from(booksByTitle.values()).sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
   }, [effectiveCollections, localBooks]);
 
   return {

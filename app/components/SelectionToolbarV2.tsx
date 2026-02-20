@@ -67,22 +67,30 @@ export function SelectionToolbarV2({ onActivate, disabled, onAskAi }: SelectionT
   useEffect(() => {
     document.addEventListener('selectionchange', handleSelectionChange);
     
-    // 点击外部关闭
-    const handleClickOutside = (e: MouseEvent) => {
+    // 点击外部关闭（支持触摸和鼠标）
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
-        setShowQuickPrompts(false);
+        // 延迟关闭，避免与按钮点击事件冲突
+        setTimeout(() => {
+          setShowQuickPrompts(false);
+        }, 50);
       }
     };
+    
+    // 同时监听鼠标和触摸事件，但使用 passive 优化性能
     document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside, { passive: true });
     
     return () => {
       document.removeEventListener('selectionchange', handleSelectionChange);
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, [handleSelectionChange]);
 
-  const handleSaveConcept = useCallback((e: React.MouseEvent) => {
+  const handleSaveConcept = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     if (selection) {
       onActivate(selection.text, selection.rect);
@@ -91,7 +99,8 @@ export function SelectionToolbarV2({ onActivate, disabled, onAskAi }: SelectionT
     }
   }, [selection, onActivate]);
 
-  const handleAskAi = useCallback((e: React.MouseEvent, prompt?: string) => {
+  const handleAskAi = useCallback((e: React.MouseEvent | React.TouchEvent, prompt?: string) => {
+    e.preventDefault();
     e.stopPropagation();
     if (selection && onAskAi) {
       const message = prompt 
@@ -103,7 +112,8 @@ export function SelectionToolbarV2({ onActivate, disabled, onAskAi }: SelectionT
     }
   }, [selection, onAskAi]);
 
-  const toggleQuickPrompts = useCallback((e: React.MouseEvent) => {
+  const toggleQuickPrompts = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     setShowQuickPrompts(prev => !prev);
   }, []);
@@ -138,7 +148,8 @@ export function SelectionToolbarV2({ onActivate, disabled, onAskAi }: SelectionT
             {/* Save as Concept */}
             <button
               onClick={handleSaveConcept}
-              className="px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-2 touch-manipulation active:scale-95"
+              onTouchEnd={handleSaveConcept}
+              className="px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-2 touch-manipulation"
             >
               <BookOpen className="w-4 h-4" />
               <span className="hidden sm:inline">保存笔记</span>
@@ -151,7 +162,8 @@ export function SelectionToolbarV2({ onActivate, disabled, onAskAi }: SelectionT
             {/* Ask AI Button */}
             <button
               onClick={toggleQuickPrompts}
-              className="px-3 py-2 text-sm font-medium bg-indigo-500 text-white hover:bg-indigo-600 rounded-lg transition-colors flex items-center gap-2 touch-manipulation active:scale-95"
+              onTouchEnd={toggleQuickPrompts}
+              className="px-3 py-2 text-sm font-medium bg-indigo-500 text-white hover:bg-indigo-600 rounded-lg transition-colors flex items-center gap-2 touch-manipulation"
             >
               <Sparkles className="w-4 h-4" />
               Ask AI
@@ -175,7 +187,8 @@ export function SelectionToolbarV2({ onActivate, disabled, onAskAi }: SelectionT
                     <button
                       key={idx}
                       onClick={(e) => handleAskAi(e, item.prompt)}
-                      className="w-full px-3 py-2 text-sm text-left text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-2 touch-manipulation active:scale-95"
+                      onTouchEnd={(e) => handleAskAi(e, item.prompt)}
+                      className="w-full px-3 py-2 text-sm text-left text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-2 touch-manipulation"
                     >
                       <item.icon className="w-4 h-4 text-indigo-500" />
                       {item.label}
@@ -188,7 +201,8 @@ export function SelectionToolbarV2({ onActivate, disabled, onAskAi }: SelectionT
                   {/* Custom Question */}
                   <button
                     onClick={(e) => handleAskAi(e)}
-                    className="w-full px-3 py-2 text-sm text-left text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-2 touch-manipulation active:scale-95"
+                    onTouchEnd={(e) => handleAskAi(e)}
+                    className="w-full px-3 py-2 text-sm text-left text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-2 touch-manipulation"
                   >
                     <MessageCircle className="w-4 h-4 text-zinc-500" />
                     自定义提问

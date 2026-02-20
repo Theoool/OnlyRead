@@ -3,7 +3,7 @@ import { prisma } from '@/lib/infrastructure/database/prisma'
 import { NextResponse } from 'next/server'
 import { generateEmbedding } from '@/lib/infrastructure/ai/embedding'
 import { API_CONFIG } from '@/lib/config/constants'
-import { devCache } from '@/lib/infrastructure/cache/dev-cache'
+import { devCache } from '@/lib/infrastructure/cache'
 
 // Cached embedding wrapper
 async function getCachedEmbedding(text: string): Promise<number[]> {

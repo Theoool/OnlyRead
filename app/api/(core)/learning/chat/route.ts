@@ -1,4 +1,4 @@
-import { createSuccessResponse, createErrorResponse } from '@/lib/infrastructure/api/response';
+import { createSuccessResponse, createErrorResponse } from '@/lib/infrastructure/error/response';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { SessionService } from '@/lib/core/learning/session.service';

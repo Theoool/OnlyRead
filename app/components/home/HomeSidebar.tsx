@@ -124,7 +124,8 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
   return (
     <section 
       className={twMerge(
-        "w-full md:w-1/2 lg:w-[55%] flex flex-col p-5 md:p-12 relative z-10 bg-white dark:bg-black border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 transition-colors duration-200",
+        "w-full md:w-1/2 lg:w-[55%] flex flex-col relative z-10 bg-white dark:bg-black border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 transition-colors duration-200",
+        isMobile ? "h-full overflow-y-auto p-5" : "p-12",
         isDragging ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500 dark:border-blue-500" : ""
       )}
       onDragOver={onDragOver}
@@ -201,7 +202,6 @@ export function HomeSidebar({ onSuccess }: HomeSidebarProps) {
         </div>
       </motion.header>
 
-      <QuickStats />
 
       {/* Learning Center Entry */}
       {isAuthenticated && (

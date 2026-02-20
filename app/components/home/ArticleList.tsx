@@ -5,7 +5,8 @@ import { FileText, Link as LinkIcon, Sparkles, ArrowRight } from "lucide-react";
 import { twMerge } from "tailwind-merge";
 import { Article } from "@/lib/core/reading/articles.service";
 import { formatRelative } from "@/lib/utils";
-import { useConceptStore, ConceptData } from "@/lib/store/useConceptStore";
+import { useConcepts } from "@/lib/hooks/use-concepts";
+import { ConceptData } from "@/lib/store/useConceptStore";
 
 interface ArticleListProps {
   articles: Article[];
@@ -16,7 +17,8 @@ interface ArticleListProps {
 
 export function ArticleList({ articles, isLoading, onLoadMore, hasMore }: ArticleListProps) {
   const router = useRouter();
-  const { concepts } = useConceptStore();
+  const { data: conceptsData } = useConcepts();
+  const concepts = conceptsData?.concepts || {};
 
   // Efficient concept lookup
   const conceptsByArticle = useMemo(() => {

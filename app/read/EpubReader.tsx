@@ -6,7 +6,8 @@ import { useTheme } from 'next-themes';
 import { Loader2, MessageSquare, BookOpen, Cloud, CloudOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useConceptStore, ConceptData } from '@/lib/store/useConceptStore';
+import { useConcepts, useAddConcept } from '@/lib/hooks/use-concepts';
+import { ConceptData } from '@/lib/store/useConceptStore';
 import { ConceptCard } from '@/app/components/ConceptCard';
 import { twMerge } from 'tailwind-merge';
 import { EpubView } from 'react-reader';
@@ -50,7 +51,9 @@ export function EpubReader({ book }: EpubReaderProps) {
   });
 
   // Concept Store
-  const { concepts, addConcept } = useConceptStore();
+  const { data: conceptsData } = useConcepts();
+  const concepts = conceptsData?.concepts || {};
+  const addConceptMutation = useAddConcept();
   const [activeCard, setActiveCard] = useState<{ x: number; y: number; term: string; savedData?: ConceptData } | null>(null);
 
   // Copilot Context
@@ -190,7 +193,7 @@ export function EpubReader({ book }: EpubReaderProps) {
   // Save concept
   const handleSaveCard = useCallback(async (data: ConceptData) => {
       try {
-          await addConcept({
+          await addConceptMutation.mutateAsync({
               ...data,
               sourceArticleId: book.id
           });
@@ -209,7 +212,7 @@ export function EpubReader({ book }: EpubReaderProps) {
       } catch (error) {
         console.error('Failed to save concept:', error);
       }
-  }, [addConcept, book.id]);
+  }, [addConceptMutation, book.id]);
 
   // Get selection coordinates
   const getSelectionCoordinates = useCallback((range: Range, iframe: HTMLIFrameElement) => {
@@ -527,33 +530,7 @@ function SyncStatusIndicator({ book }: { book: LocalBook }) {
     );
   }
   
-  // 已同步状态 - 显示切换按钮
-  if (book.syncStatus === 'synced') {
-    const handleSwitchToCloud = () => {
-      if (book.cloudCollectionId) {
-        router.push(`/read?id=${book.cloudArticleId || book.cloudCollectionId}`);
-      } else if (book.cloudArticleId) {
-        router.push(`/read?id=${book.cloudArticleId}`);
-      }
-    };
-
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="fixed top-3 left-6 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-50 dark:bg-green-950/30 border border-zinc-200/50 dark:border-zinc-800/50"
-      >
-        <Cloud className="w-3 h-3 text-green-500" />
-        <span className="text-[11px] font-medium text-green-500">已同步</span>
-        <button
-          onClick={handleSwitchToCloud}
-          className="ml-1 px-2 py-0.5 bg-white dark:bg-zinc-800 rounded text-[10px] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors border border-zinc-200 dark:border-zinc-700"
-        >
-          切换云端
-        </button>
-      </motion.div>
-    );
-  }
+  
   
   // 本地模式
   if (book.syncStatus === 'local') {

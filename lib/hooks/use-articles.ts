@@ -2,15 +2,9 @@
 
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query'
 import * as articlesAPI from '@/lib/core/reading/articles.service'
+import { Article } from '@/lib/core/reading/articles.service'
 import { saveArticle, updateArticleProgress, deleteArticle } from '@/app/actions/article'
-
-// Query Keys
-export const queryKeys = {
-  articles: ['articles'] as const,
-  article: (id: string) => ['article', id] as const,
-  concepts: ['concepts'] as const,
-  quickStats: ['quickStats'] as const,
-}
+import { queryKeys } from './query-keys'
 
 /**
  * 获取所有文章列表（支持分页）
@@ -20,13 +14,14 @@ export function useArticles(options: {
   pageSize?: number;
   limit?: number;
   type?: string;
-  initialData?: any;
+  initialData?: { articles: Article[]; pagination?: any };
 } = {}) {
   const { page, pageSize, limit, type, initialData } = options;
   return useQuery({
-    queryKey: [...queryKeys.articles, page, pageSize, limit, type],
+    queryKey: queryKeys.articles.list({ page, pageSize, limit, type }),
     queryFn: () => articlesAPI.getArticles({ page, pageSize, limit, type }),
-    initialData
+    initialData,
+    staleTime: 1000 * 60, // 1分钟内不重新请求
   })
 }
 
@@ -40,7 +35,7 @@ export function useArticlesInfinite(options: {
   const { pageSize = 20, type } = options;
 
   return useInfiniteQuery({
-    queryKey: ['articles', 'infinite', pageSize, type],
+    queryKey: queryKeys.articles.infinite({ pageSize, type }),
     queryFn: ({ pageParam = 1 }) =>
       articlesAPI.getArticles({ page: pageParam, pageSize, type }),
     initialPageParam: 1,
@@ -50,22 +45,23 @@ export function useArticlesInfinite(options: {
       }
       return undefined;
     },
+    staleTime: 1000 * 60, // 1分钟
   });
 }
 
 /**
  * 获取单篇文章
  */
-export function useArticle(id: string, options: { initialData?: any } = {}) {
+export function useArticle(id: string, options: { initialData?: Article } = {}) {
   const { initialData } = options;
-  const a= useQuery({
-    queryKey: queryKeys.article(id),
+  return useQuery({
+    queryKey: queryKeys.articles.detail(id),
     queryFn: () => articlesAPI.getArticle(id),
     enabled: !!id,
     retry: 1,
-    initialData
+    initialData,
+    staleTime: 1000 * 60 * 5, // 5分钟
   })
-  return a
 }
 
 /**
@@ -75,14 +71,28 @@ export function useSaveArticle() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (article: any) => {
+    mutationFn: async (article: Partial<Article> & { title: string; content: string }) => {
       const res = await saveArticle(article);
       if (!res.success) throw new Error('Save failed');
       return res.article;
     },
-    onSuccess: () => {
-      // 保存成功后刷新文章列表
-      queryClient.invalidateQueries({ queryKey: queryKeys.articles })
+    onSuccess: (savedArticle) => {
+      // 精确更新：只刷新文章列表，不影响其他查询
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.articles.lists(),
+        exact: false 
+      })
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.articles.infinite({}) 
+      })
+      
+      // 如果是更新操作，同时更新详情缓存
+      if (savedArticle?.id) {
+        queryClient.setQueryData(
+          queryKeys.articles.detail(savedArticle.id),
+          savedArticle
+        )
+      }
     },
   })
 }
@@ -99,9 +109,17 @@ export function useDeleteArticle() {
         if (!res.success) throw new Error('Delete failed');
         return res;
     },
-    onSuccess: () => {
-      // 删除成功后刷新文章列表
-      queryClient.invalidateQueries({ queryKey: queryKeys.articles })
+    onSuccess: (_, deletedId) => {
+      // 精确更新：移除详情缓存，刷新列表
+      queryClient.removeQueries({ 
+        queryKey: queryKeys.articles.detail(deletedId) 
+      })
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.articles.lists() 
+      })
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.articles.infinite({}) 
+      })
     },
   })
 }
@@ -124,13 +142,23 @@ export function useUpdateArticleProgress() {
         if (!res.success) throw new Error('Update failed');
         return res.article;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (updatedArticle, variables) => {
       if (variables.skipInvalidation) return
 
-      // 更新成功后刷新该文章的缓存
-      queryClient.invalidateQueries({ queryKey: queryKeys.article(variables.id) })
-      // 同时刷新文章列表
-      queryClient.invalidateQueries({ queryKey: queryKeys.articles })
+      // 乐观更新：直接更新缓存，避免重新请求
+      if (updatedArticle) {
+        queryClient.setQueryData(
+          queryKeys.articles.detail(variables.id),
+          updatedArticle
+        )
+      }
+      
+      // 只在进度有显著变化时才刷新列表（避免频繁刷新）
+      if (variables.progress !== undefined) {
+        queryClient.invalidateQueries({ 
+          queryKey: queryKeys.articles.lists() 
+        })
+      }
     },
   })
 }
@@ -140,7 +168,7 @@ export function useUpdateArticleProgress() {
  */
 export function useArticleNavigation(articleId: string | undefined) {
   return useQuery({
-    queryKey: ['article', articleId, 'navigation'],
+    queryKey: queryKeys.articles.navigation(articleId || ''),
     queryFn: async () => {
       if (!articleId) return null;
       const res = await fetch(`/api/articles/${articleId}/navigation?includeCollection=true`);

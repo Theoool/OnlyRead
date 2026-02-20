@@ -1,4 +1,4 @@
-import { createSuccessResponse, createErrorResponse } from '@/lib/infrastructure/api/response';
+import { createSuccessResponse, createErrorResponse } from '@/lib/infrastructure/error/response';
 import { learningGraph } from '@/lib/core/learning/graph';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';

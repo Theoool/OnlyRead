@@ -57,7 +57,7 @@ export function AISidebarEphemeral({
     // 添加用户消息
     const userMsg = {
       id: `user-${Date.now()}`,
-      role: 'user',
+      role: 'USER',
       content,
       createdAt: new Date().toISOString()
     };
@@ -69,7 +69,7 @@ export function AISidebarEphemeral({
     setIsStreaming(true);
     setStreamingMessage({
       id: `streaming-${Date.now()}`,
-      role: 'assistant',
+      role: 'ASSISTANT',
       content: '',
       createdAt: new Date().toISOString()
     });
@@ -82,43 +82,54 @@ export function AISidebarEphemeral({
           message: content,
           context: systemContext,
           history: messages.map(m => ({
-            role: m.role,
+            role: m.role.toLowerCase(), // 转换为小写
             content: m.content
           }))
         }),
         signal: abortControllerRef.current.signal
       });
 
-      if (!response.ok) throw new Error('Failed to send message');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[AISidebarEphemeral] API Error:', response.status, errorText);
+        throw new Error(`API 请求失败: ${response.status}`);
+      }
 
       const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('无法获取响应流');
+      }
+
       const decoder = new TextDecoder();
       let accumulatedText = '';
 
-      if (reader) {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
 
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n\n');
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n\n');
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                if (data.type === 'delta' && data.text) {
-                  accumulatedText += data.text;
-                  setStreamingMessage((prev: any) => ({
-                    ...prev,
-                    content: accumulatedText
-                  }));
-                } else if (data.type === 'done') {
-                  // 完成
-                }
-              } catch (e) {
-                // 忽略解析错误
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'delta' && data.text) {
+                accumulatedText += data.text;
+                setStreamingMessage((prev: any) => ({
+                  ...prev,
+                  content: accumulatedText
+                }));
+              } else if (data.type === 'error') {
+                throw new Error(data.message || 'AI 响应错误');
+              } else if (data.type === 'done') {
+                // 完成
               }
+            } catch (e) {
+              if (e instanceof Error && e.message !== 'Unexpected end of JSON input') {
+                throw e;
+              }
+              // 忽略 JSON 解析错误
             }
           }
         }
@@ -127,7 +138,7 @@ export function AISidebarEphemeral({
       // 添加完整的 AI 消息
       const assistantMsg = {
         id: `assistant-${Date.now()}`,
-        role: 'assistant',
+        role: 'ASSISTANT',
         content: accumulatedText,
         createdAt: new Date().toISOString()
       };
@@ -136,15 +147,21 @@ export function AISidebarEphemeral({
     } catch (error: any) {
       // 忽略用户主动取消的请求
       if (error.name === 'AbortError') {
-        console.log('Request aborted by user');
+        console.log('[AISidebarEphemeral] Request aborted by user');
         return;
       }
       
-      console.error('Failed to send message:', error);
+      console.error('[AISidebarEphemeral] Failed to send message:', error);
+      
+      // 显示详细错误信息
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : '抱歉，发生了未知错误，请重试。';
+      
       const errorMsg = {
         id: `error-${Date.now()}`,
-        role: 'assistant',
-        content: '抱歉，发生了错误，请重试。',
+        role: 'ASSISTANT',
+        content: `❌ ${errorMessage}`,
         createdAt: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -155,12 +172,14 @@ export function AISidebarEphemeral({
     }
   }, [context, messages, isStreaming]);
 
-  // 清理函数
+  // 清理函数（修复内存泄漏）
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      // 重置初始消息标记
+      initialMessageSentRef.current = false;
     };
   }, []);
 
@@ -172,10 +191,14 @@ export function AISidebarEphemeral({
     }
   }, [isOpen, initialMessage, messages.length, sendMessage]);
 
-  // 重置初始消息标记
+  // 关闭时重置状态
   useEffect(() => {
     if (!isOpen) {
-      initialMessageSentRef.current = false;
+      // 延迟重置，等待动画完成
+      const timer = setTimeout(() => {
+        initialMessageSentRef.current = false;
+      }, 300);
+      return () => clearTimeout(timer);
     }
   }, [isOpen]);
 
@@ -184,9 +207,9 @@ export function AISidebarEphemeral({
     : messages;
 
   const SidebarContent = (
-    <div className="flex flex-col h-full  w-full md:w-[400px]">
+    <div className="flex flex-col h-full w-full md:w-[400px] overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 md:px-4 py-2.5 md:py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md flex-shrink-0">
+      <div className="flex items-center justify-between px-3 md:px-4 py-2.5 md:py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex-shrink-0 z-10">
         <div className="flex items-center gap-2 min-w-0">
           <Sparkles className="w-4 h-4 text-indigo-500 flex-shrink-0" />
           <span className="font-medium text-sm truncate">阅读助手</span>
@@ -204,6 +227,7 @@ export function AISidebarEphemeral({
               onClick={handleReset}
               className="p-2 text-zinc-500 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors touch-manipulation active:scale-95"
               title="重置对话"
+              aria-label="重置对话"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
@@ -214,14 +238,15 @@ export function AISidebarEphemeral({
             onClick={onClose}
             className="p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors touch-manipulation active:scale-95"
             title="关闭"
+            aria-label="关闭侧边栏"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-hidden">
+      {/* Messages - 确保可以滚动 */}
+      <div className="flex-1 min-h-0 overflow-hidden">
         <ChatMessages
           messages={displayMessages}
           isStreaming={isStreaming}
@@ -229,14 +254,16 @@ export function AISidebarEphemeral({
       </div>
 
       {/* Input */}
-      <ChatInput
-        onSend={sendMessage}
-        disabled={isStreaming}
-        placeholder="向 AI 提问..."
-      />
+      <div className="flex-shrink-0">
+        <ChatInput
+          onSend={sendMessage}
+          disabled={isStreaming}
+          placeholder="向 AI 提问..."
+        />
+      </div>
 
       {/* Footer Hint */}
-      <div className="px-3 md:px-4 py-2 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
+      <div className="px-3 md:px-4 py-2 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 flex-shrink-0">
         <p className="text-xs text-zinc-500 text-center leading-relaxed">
           💡 对话仅在当前会话有效
         </p>
@@ -265,7 +292,11 @@ export function AISidebarEphemeral({
                 animate={{ x: 0 }}
                 exit={{ x: '100%' }}
                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="fixed inset-y-0 right-0 z-50 w-full sm:w-[90vw] md:w-[400px] bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col"
+                className="fixed inset-y-0 right-0 z-50 w-full sm:w-[90vw] md:w-[400px] bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden"
+                style={{
+                  paddingTop: 'env(safe-area-inset-top)',
+                  paddingBottom: 'env(safe-area-inset-bottom)',
+                }}
               >
                 {SidebarContent}
               </motion.aside>
@@ -275,7 +306,10 @@ export function AISidebarEphemeral({
           {layoutMode === 'flat' && (
             <motion.aside
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: typeof window !== 'undefined' && window.innerWidth < 768 ? '100vw' : 400, opacity: 1 }}
+              animate={{ 
+                width: typeof window !== 'undefined' && window.innerWidth < 768 ? '100vw' : 400, 
+                opacity: 1 
+              }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
               className="h-full border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex-shrink-0 overflow-hidden"

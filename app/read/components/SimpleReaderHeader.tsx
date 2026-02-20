@@ -44,11 +44,11 @@ export function SimpleReaderHeader({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
                 onClick={onAiToggle}
-                className="hidden md:flex items-center gap-2 bg-white/90 dark:bg-black/90 backdrop-blur-md px-3 py-2 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 transition-all hover:bg-white dark:hover:bg-zinc-950 active:scale-95 group shadow-sm touch-manipulation"
+                className="flex items-center justify-center gap-1.5 bg-white/90 dark:bg-black/90 backdrop-blur-md min-w-[40px] min-h-[40px] sm:min-w-[44px] sm:min-h-[44px] md:min-w-0 md:min-h-0 px-2.5 sm:px-3 md:px-3 py-2 sm:py-2.5 md:py-2 rounded-2xl md:rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 transition-all shadow-sm touch-manipulation"
                 type="button"
             >
                 <Sparkles className="w-4 h-4 text-indigo-400 group-hover:text-indigo-500" />
-                <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                <span className="text-xs hidden md:inline   font-medium text-zinc-600 dark:text-zinc-300">
                     AI Copilot
                 </span>
             </motion.button>

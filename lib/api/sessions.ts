@@ -162,7 +162,7 @@ export interface StreamHandlers {
   onStep?: (data: any) => void;
   onSources?: (data: any) => void;
   onDelta?: (text: string) => void;
-  onFinal?: (response: any) => void;
+  onFinal?: (response: any) => void;  
   onError?: (error: any) => void;
   onDone?: (data: any) => void;
 }
@@ -180,6 +180,10 @@ export const ChatAPI = {
     handlers: StreamHandlers,
     options?: {
       uiIntent?: string;
+      context?: {
+        articleIds: string[];
+        collectionId?: string;
+      };
     }
   ): Promise<void> => {
     const res = await fetch(`/api/sessions/${sessionId}/chat`, {
@@ -189,6 +193,7 @@ export const ChatAPI = {
       body: JSON.stringify({
         message,
         uiIntent: options?.uiIntent,
+        context: options?.context,
       }),
     });
 

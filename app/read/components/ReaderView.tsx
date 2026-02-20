@@ -45,6 +45,9 @@ export function ReaderView({
     onTermClick: (termId: string) => {
       const card = visibleCards.find(c => (c.id || c.term) === termId);
       if (card) {
+        // 检查是否在浏览器环境
+        if (typeof window === 'undefined') return;
+        
         // 创建一个模拟的 MouseEvent 对象，包含必要的 target 属性
         const mockEvent = {
           target: {
@@ -81,12 +84,13 @@ export function ReaderView({
   }, [currentIndex, sentences.length, scrollToCenter]);
 
   // 动态渲染窗口 - 根据设备类型调整
-  const getWindowSize = () => {
+  const windowSize = useMemo(() => {
+    // 检查是否在浏览器环境
+    if (typeof window === 'undefined') return 30;
     const isMobile = window.innerWidth < 768;
     return isMobile ? 15 : 30;
-  };
+  }, []);
 
-  const windowSize = getWindowSize();
   const renderStartIndex = Math.max(0, currentIndex - Math.floor(windowSize / 2));
   const renderEndIndex = Math.min(sentences.length, currentIndex + Math.floor(windowSize / 2));
 

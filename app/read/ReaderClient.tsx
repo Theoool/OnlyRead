@@ -23,8 +23,10 @@ import { ConceptHud } from "@/app/components/ConceptHud";
 
 // Hooks
 import { useReadingLogic } from "./hooks/useReadingLogic";
-import { useConceptStore, ConceptData } from "@/lib/store/useConceptStore";
+import { useConcepts } from "@/lib/hooks/use-concepts";
 import { useIsMobile } from "@/lib/hooks/use-device";
+import { useVisibleConcepts } from "./hooks/useVisibleConcepts";
+import { useActiveCard } from "./hooks/useActiveCard";
 import dynamic from "next/dynamic";
 
 // Dynamic Imports removed as we are unifying to ReaderView
@@ -122,60 +124,35 @@ function RemoteArticleReader({
       .join(' ');
   }, [sentences, currentIndex, article, initialArticle]);
   
-  // Concept Logic
-  const { concepts, addConcept, loadConcepts } = useConceptStore();
+  // Concept Logic - 使用优化的 hooks
+  const { data: conceptsData } = useConcepts();
+  const concepts = conceptsData?.concepts || {};
   
-  // Ensure concepts are loaded on mount
-  useEffect(() => { 
-    loadConcepts(); 
-  }, [loadConcepts]); 
+  // 获取当前活动文章
+  const activeArticle = article || initialArticle;
+  
+  // 使用优化的 visibleConcepts hook
+  const visibleCards = useVisibleConcepts({
+    content: activeArticle?.content,
+    concepts,
+    maxVisible: 5
+  });
 
-  const visibleCards = useMemo(() => {
-    const activeArticle = article || initialArticle;
-    if (!activeArticle || !activeArticle.content) return [];
-    
-    const contentLower = activeArticle.content.toLowerCase();
-    const allConcepts = Object.values(concepts);
-    
-    return allConcepts.filter(c => {
-      if (!c.term) return false;
-      return contentLower.includes(c.term.toLowerCase());
-    });
-  }, [article, initialArticle, concepts]); 
+  // 使用 activeCard hook 管理卡片状态
+  const {
+    activeCard,
+    openCardFromEvent,
+    openCardFromRect,
+    openCardCentered,
+    closeCard,
+    saveCard,
+    isOpen: isCardOpen
+  } = useActiveCard({
+    articleId: activeArticle?.id,
+    concepts
+  });
 
-  const [activeCard, setActiveCard] = useState<{ x: number; y: number; term: string; savedData?: ConceptData } | null>(null);
   const [isTocOpen, setIsTocOpen] = useState(false);
-
-  const handleTermClick = (e: React.MouseEvent, term: string) => {
-      const saved = concepts[term];
-      if (saved) {
-        // 添加安全检查，确保 e.target 存在且有 getBoundingClientRect 方法
-        const target = e.target as HTMLElement;
-        if (target && typeof target.getBoundingClientRect === 'function') {
-          const rect = target.getBoundingClientRect();
-          setActiveCard({ x: rect.left, y: rect.top, term, savedData: saved });
-        } else {
-          // 如果无法获取位置信息，使用屏幕中心位置
-          setActiveCard({ 
-            x: window.innerWidth / 2, 
-            y: window.innerHeight / 2, 
-            term, 
-            savedData: saved 
-          });
-        }
-      }
-  };
-
-  const handleSaveCard = async (data: ConceptData) => {
-      const activeArticle = article || initialArticle;
-      if (!activeArticle) return;
-      try {
-          await addConcept({ ...data, sourceArticleId: activeArticle.id });
-          setActiveCard(null);
-      } catch (error) {
-          console.error('Failed to save concept:', error);
-      }
-  };
 
   if (isLoadingArticle && !initialArticle) {
     return (
@@ -185,10 +162,14 @@ function RemoteArticleReader({
     );
   }
 
-  const activeArticle = article || initialArticle;
   if (!activeArticle) return null;
 
   const progress = sentences.length > 0 ? ((currentIndex + 1) / sentences.length) * 100 : 0;
+
+  // 处理术语点击事件
+  const handleTermClick = (e: React.MouseEvent, term: string) => {
+    openCardFromEvent(e, term);
+  };
 
   return (
     <div className="h-screen w-full overflow-clip  bg-[#FAFAFA] dark:bg-black text-zinc-900 dark:text-zinc-50 font-sans  flex flex-row selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black relative">
@@ -230,15 +211,7 @@ function RemoteArticleReader({
                     <ConceptHud 
                         cards={visibleCards} 
                         onTermClick={(term) => {
-                            const saved = concepts[term];
-                            if (saved) {
-                                setActiveCard({
-                                    x: window.innerWidth / 2 - 140,
-                                    y: window.innerHeight / 2 - 100,
-                                    term,
-                                    savedData: saved
-                                });
-                            }
+                            openCardCentered(term);
                         }}
                     />
                   </div>
@@ -252,8 +225,7 @@ function RemoteArticleReader({
                 onTocToggle={() => setIsTocOpen(!isTocOpen)}
                 visibleCards={visibleCards}
                 onTermClick={(term) => {
-                    const saved = concepts[term];
-                    if(saved) setActiveCard({ x: window.innerWidth/2 - 140, y: window.innerHeight/2 - 100, term, savedData: saved });
+                    openCardCentered(term);
                 }}
                 onAiToggle={handleAiToggle}
             />
@@ -356,15 +328,17 @@ function RemoteArticleReader({
           
           <SelectionToolbarV2
             onActivate={(text, rect) => {
-                const saved = concepts[text];
-                if (saved) {
-                    setActiveCard({ x: rect.left, y: rect.top, term: text, savedData: saved });
+                // 如果已存在该概念，直接打开
+                if (concepts[text]) {
+                    openCardFromRect(rect, text);
                     return;
                 }
+                // 限制最多5个可见卡片
                 if (visibleCards.length >= 5) return;
-                setActiveCard({ x: rect.left, y: rect.top, term: text });
+                // 创建新概念卡片
+                openCardFromRect(rect, text);
             }}
-            disabled={!!activeCard} 
+            disabled={isCardOpen} 
             onAskAi={handleAskAi}
           />
           
@@ -375,8 +349,8 @@ function RemoteArticleReader({
                       selection={activeCard.term}
                       position={{ top: activeCard.y, left: activeCard.x }}
                       savedData={activeCard.savedData}
-                      onSave={handleSaveCard}
-                      onClose={() => setActiveCard(null)}
+                      onSave={saveCard}
+                      onClose={closeCard}
                   />
               )}
           </AnimatePresence>

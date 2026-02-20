@@ -6,7 +6,7 @@ import { ArticleSchema } from '@/lib/shared/validation/schemas';
 import { UnauthorizedError } from '@/lib/infrastructure/error';
 import { IndexingService } from '@/lib/core/indexing/service';
 import { prisma } from '@/lib/infrastructure/database/prisma';
-import { devCache, cacheKeys } from '@/lib/infrastructure/cache/dev-cache';
+import { devCache, cacheKeys } from '@/lib/infrastructure/cache';
 import { API_CONFIG } from '@/lib/config/constants';
 
 

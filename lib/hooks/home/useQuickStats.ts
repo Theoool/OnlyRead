@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/hooks/query-keys';
 
 interface QuickStats {
   dueCount: number;
@@ -8,7 +9,7 @@ interface QuickStats {
 
 export function useQuickStats() {
   return useQuery({
-    queryKey: ['quickStats'],
+    queryKey: queryKeys.stats.quick(),
     queryFn: async () => {
       const [masteryRes, learningRes] = await Promise.all([
         fetch('/api/stats/mastery', { credentials: 'include' }),

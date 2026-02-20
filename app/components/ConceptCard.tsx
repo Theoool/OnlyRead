@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, PenLine, Check, X, ChevronRight, ArrowLeft, Bookmark } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ConceptData } from "@/lib/store/useConceptStore";
 import { Skeleton } from "@/app/components/ui/skeleton";
+import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/hooks/query-keys";
 
 interface ConceptCardProps {
   selection: string;
@@ -55,7 +56,7 @@ export function ConceptCard({ selection, position, savedData, onSave, onClose }:
 
   // Query for AI Data
   const { data: aiData, isLoading, isError, error } = useQuery({
-    queryKey: ["concept", selection],
+    queryKey: queryKeys.concepts.aiDefinition(selection),
     queryFn: () => fetchConcept(selection),
     enabled: !savedData && mode === "loading", // Only fetch if not already saved
     staleTime: 1000 * 60 * 60, // Cache for 1 hour
