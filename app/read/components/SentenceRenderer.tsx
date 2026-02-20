@@ -12,7 +12,7 @@ interface SentenceRendererProps {
   sentence: string;
   index: number;
   currentIndex: number;
-  articleType: 'markdown' | 'text';
+  articleType: 'markdown' | 'text' |  undefined;
   isCurrent: boolean;
   isVisible: boolean;
   shake: number;

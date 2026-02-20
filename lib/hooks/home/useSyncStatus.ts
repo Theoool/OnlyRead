@@ -5,7 +5,7 @@
  */
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/db';
+import { db, type LocalBook } from '@/lib/db';
 import { useJobProgress } from './useJobProgress';
 
 export function useSyncStatus(localId?: string) {
@@ -13,7 +13,7 @@ export function useSyncStatus(localId?: string) {
   const book = useLiveQuery(
     () => localId ? db.books.get(localId) : Promise.resolve(null),
     [localId]
-  );
+  ) as LocalBook | null | undefined;
 
   // 追踪 Job 进度
   const { jobStatus, isProcessing, progress: jobProgress } = useJobProgress(book?.jobId);

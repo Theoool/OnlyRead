@@ -39,11 +39,7 @@ const nextConfig: NextConfig = {
         destination: '/',
         permanent: true,
       },
-      {
-        source: '/review',
-        destination: '/',
-        permanent: true,
-      },
+      
       {
         source: '/options',
         destination: '/',

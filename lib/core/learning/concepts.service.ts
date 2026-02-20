@@ -135,19 +135,6 @@ export async function deleteConcept(id: string): Promise<void> {
   await del<void>(`/api/concepts?id=${id}`)
 }
 
-/**
- * Submit a review for a concept
- */
-export async function submitReview(
-  conceptId: string,
-  quality: number
-): Promise<ConceptData> {
-  const response = await post<ConceptResponse>('/api/concepts/review', {
-    conceptId,
-    quality,
-  })
-  return response.concept
-}
 
 /**
  * Batch import concepts

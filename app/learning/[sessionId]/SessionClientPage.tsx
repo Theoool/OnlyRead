@@ -34,7 +34,7 @@ interface Collection {
 interface SessionClientPageProps {
   sessionId: string;
   sessionTitle: string;
-  initialMessages: Message[];
+
   context: {
     articleIds: string[];
     collectionId?: string;
@@ -46,7 +46,7 @@ interface SessionClientPageProps {
 export function SessionClientPage({
   sessionId,
   sessionTitle,
-  initialMessages,
+ 
   context: initialContext,
   articles,
   collections

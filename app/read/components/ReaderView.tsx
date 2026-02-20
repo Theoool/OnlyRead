@@ -15,7 +15,7 @@ export const HighlightContext = createContext<HighlightContextType | null>(null)
 interface ReaderViewProps {
   sentences: string[];
   currentIndex: number;
-  articleType: 'markdown' | 'text';
+  articleType: "markdown" | "text" | undefined;
   visibleCards: ConceptData[];
   onTermClick: (e: React.MouseEvent, term: string) => void;
   isCooldown: boolean;
@@ -121,7 +121,7 @@ export function ReaderView({
                 sentence={sentence}
                 index={index}
                 currentIndex={currentIndex}
-                articleType={articleType}
+                 articleType={articleType}
                 isCurrent={isCurrent}
                 isVisible={isVisible}
                 shake={shake}

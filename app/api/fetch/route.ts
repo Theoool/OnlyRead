@@ -27,6 +27,7 @@ export async function POST(req: Request) {
       }
       console.log("Response status:", res);
       
+      
       html = await res.text();
     } catch (e) {
       return NextResponse.json(

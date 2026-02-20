@@ -94,7 +94,7 @@ export default async function SessionPage({ params }: SessionPageProps) {
     <SessionClientPage 
       sessionId={sessionId}
       sessionTitle={session.title || '新会话'}
-      initialMessages={initialMessages}
+     
       context={context}
       articles={articles}
       collections={collections}
