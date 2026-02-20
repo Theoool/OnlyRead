@@ -53,17 +53,17 @@ export const ChatInput = memo(function ChatInput({
     // 使用 setTimeout 确保键盘完全弹起后再滚动
     setTimeout(() => {
       if (window.innerWidth < 768) {
-        // 优先使用 scrollIntoViewIfNeeded（Safari/Chrome）
-        const element = containerRef.current || inputRef.current;
+        const element = containerRef.current;
         if (element) {
-          if ('scrollIntoViewIfNeeded' in element) {
-            (element as any).scrollIntoViewIfNeeded?.(true);
-          } else {
-            element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          }
+          // 滚动到输入框位置
+          element.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'end',
+            inline: 'nearest'
+          });
         }
       }
-    }, 100);
+    }, 300); // 增加延迟以确保键盘完全弹起
   }, [isFocused]);
 
   useEffect(() => {
@@ -97,9 +97,8 @@ export const ChatInput = memo(function ChatInput({
   return (
     <div 
       ref={containerRef}
-      className="p-3 md:p-4 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex-shrink-0"
+      className="sticky bottom-0 p-3 md:p-4 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex-shrink-0 safe-bottom"
       style={{
-        position: 'relative',
         zIndex: 10,
       }}
     >
@@ -117,7 +116,7 @@ export const ChatInput = memo(function ChatInput({
             disabled={disabled}
             className="w-full px-4 py-3 pr-12 rounded-xl bg-zinc-50 dark:bg-zinc-800 border-2 border-transparent focus:border-indigo-500 focus:bg-white dark:focus:bg-zinc-900 transition-all outline-none text-base disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation shadow-sm focus:shadow-lg focus:shadow-indigo-500/10"
             style={{
-              fontSize: '16px',
+              fontSize: '16px', // 防止 iOS 自动缩放
             }}
             maxLength={2000}
             autoComplete="off"
@@ -125,6 +124,7 @@ export const ChatInput = memo(function ChatInput({
             autoCapitalize="off"
             spellCheck="false"
             enterKeyHint="send"
+            inputMode="text"
           />
           <button
             type="submit"

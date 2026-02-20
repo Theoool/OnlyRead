@@ -62,7 +62,7 @@ const TEXT_NOISE_PATTERNS = [
   { pattern: /(关注|扫码|微信|公众号|二维码|订阅|分享|收藏|点赞|在看)[^\n]{0,30}/g, weight: 1 },
   { pattern: /(本文来源|文章来源|原文链接|本文链接)[：:][^\n]*/g, weight: 1 },
   { pattern: /(版权声明|免责声明|侵权投诉|法律顾问)[^\n]{0,50}/g, weight: 1 },
-  { pattern: /(上一篇|下一篇|相关推荐)[：:][^\n]*/g, weight: 1 },
+  { pattern: /(相关推荐)[：:][^\n]*/g, weight: 1 },
   { pattern: /(\d{1,2}分钟阅读|阅读\s*\d+|浏览\s*\d+)[^\n]*/g, weight: 0.8 },
   { pattern: /(编辑：|作者：|来源：|原标题：)[^\n]*/g, weight: 0.8 },
   { pattern: /(点击|戳|查看|访问)[^\n]{0,20}(原文|链接|这里|此处)[^\n]*/g, weight: 1 },

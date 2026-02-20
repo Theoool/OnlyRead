@@ -209,7 +209,7 @@ export const ChatMessages = memo(function ChatMessages({
   return (
     <div 
       ref={containerRef} 
-      className="h-full overflow-y-auto overflow-x-hidden p-3 md:p-4 overscroll-contain scroll-smooth"
+      className="h-full w-full overflow-y-auto overflow-x-hidden p-3 md:p-4 overscroll-contain"
       style={{ 
         WebkitOverflowScrolling: 'touch',
         // 移动端优化：防止滚动卡顿

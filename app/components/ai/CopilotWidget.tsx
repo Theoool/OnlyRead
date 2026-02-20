@@ -86,26 +86,28 @@ export const CopilotWidget = memo(function CopilotWidget({
   return (
     <div 
       className={cn(
-        'flex flex-col h-full',
-        variantStyles[variant],
-        // 移动端优化：确保全屏显示
-        isMobile && 'min-h-screen'
+        'flex flex-col h-full w-full',
+        variantStyles[variant]
       )}
     >
       <ChatHeader session={session} />
       
-      <ChatMessages
-        messages={messages}
-        isStreaming={isStreaming}
-        onEngineAction={handleEngineAction}
-        onSuggestedAction={handleSuggestedAction}
-      />
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <ChatMessages
+          messages={messages}
+          isStreaming={isStreaming}
+          onEngineAction={handleEngineAction}
+          onSuggestedAction={handleSuggestedAction}
+        />
+      </div>
       
-      <ChatInput
-        onSend={sendMessage}
-        disabled={sessionLoading || isStreaming}
-        placeholder={isMobile ? '输入消息...' : '输入消息...'}
-      />
+      <div className="flex-shrink-0">
+        <ChatInput
+          onSend={sendMessage}
+          disabled={sessionLoading || isStreaming}
+          placeholder={isMobile ? '输入消息...' : '输入消息...'}
+        />
+      </div>
     </div>
   );
 });

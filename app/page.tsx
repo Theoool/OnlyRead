@@ -10,9 +10,6 @@ export default async function Page() {
   
   const { data: { user } } = await supabase.auth.getUser();
 
-    
-  
-  
   if (!user) {
     
     return <ClientHome />;

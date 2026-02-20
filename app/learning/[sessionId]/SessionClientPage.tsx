@@ -110,7 +110,7 @@ export function SessionClientPage({
   };
 
   return (
-    <div className="h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-50 flex overflow-hidden">
+    <div className="h-[100dvh] bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-50 flex overflow-hidden">
       {/* Sidebar - Context Selector - 移动端全屏覆盖 */}
       <AnimatePresence mode="wait">
         {isSidebarOpen && (
@@ -167,9 +167,9 @@ export function SessionClientPage({
       </AnimatePresence>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-black relative">
+      <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-black relative overflow-hidden">
         {/* Header - 移动端优化 */}
-        <header className="sticky top-0 z-20 bg-white/90 dark:bg-black/90 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
+        <header className="sticky top-0 z-20 bg-white/90 dark:bg-black/90 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 safe-top">
           <div className="w-full px-3 sm:px-4 h-14 flex items-center justify-between gap-2">
             {/* 左侧按钮组 */}
             <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
@@ -258,8 +258,8 @@ export function SessionClientPage({
           </div>
         </header>
        
-        {/* Chat Area - 全屏优化 */}
-        <main className="flex-1 overflow-hidden relative">
+        {/* Chat Area - 移动端全屏优化 */}
+        <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <CopilotWidget 
             sessionId={sessionId}
             variant="full"
