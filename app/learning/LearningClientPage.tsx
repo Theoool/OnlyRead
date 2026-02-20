@@ -17,7 +17,8 @@ import {
   Search,
   Filter,
   MoreVertical,
-  Edit3
+  Edit3,
+  ArrowLeft
 } from 'lucide-react';
 import { ContextSelector } from '@/app/components/ai/ContextSelector';
 
@@ -193,6 +194,13 @@ export function LearningClientPage({ sessions, articles, collections }: Learning
           {/* 顶部栏 */}
           <div className="h-14 sm:h-16 flex items-center justify-between">
             <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                onClick={() => router.push('/')}
+                className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors text-zinc-500 touch-manipulation active:scale-90 flex-shrink-0"
+                aria-label="返回首页"
+              >
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
               <div className="p-1.5 sm:p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg shadow-indigo-500/20">
                 <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
