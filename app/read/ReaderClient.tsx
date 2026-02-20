@@ -103,13 +103,13 @@ function RemoteArticleReader({
     isLoadingArticle,
   } = useReadingLogic(initialArticle);
 
-  // Use initialCollection if available
+ 
   const effectiveCollection = collection || initialCollection;
 
-  // Compute current context text (window of 10 sentences)
+
   const currentContextText = useMemo(() => {
     if (!sentences || sentences.length === 0) {
-      // Fallback: return article title and basic info when no sentences available
+     
       const activeArticle = article || initialArticle;
       return activeArticle 
         ? `正在阅读: ${activeArticle.title || '未知文章'}\n文章ID: ${activeArticle.id}`

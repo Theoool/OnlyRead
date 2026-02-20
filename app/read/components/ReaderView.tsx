@@ -103,7 +103,7 @@ export function ReaderView({
         className="flex-1 relative overflow-y-auto flex flex-col items-center z-10 scroll-smooth no-scrollbar"
       >
         {/* 响应式容器：移动端更窄，确保良好阅读体验 */}
-        <div className="w-full max-w-2xl sm:max-w-3xl px-4 sm:px-6 md:px-8 py-[15vh] sm:py-[25vh] md:py-[40vh] flex flex-col gap-6 sm:gap-8 md:gap-10">
+        <div className="w-full max-w-2xl sm:max-w-3xl px-4 sm:px-6 md:px-8 py-[45vh] sm:py-[40vh] md:py-[40vh] flex flex-col gap-6 sm:gap-8 md:gap-10">
           {sentences.map((sentence, index) => {
             if (index < renderStartIndex || index > renderEndIndex) {
               return null;
