@@ -7,6 +7,7 @@ const bundleAnalyzer = withBundleAnalyzer({
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['jsdom', '@napi-rs/canvas', 'pdfjs-dist', 'canvas'],
+  
   // Enable standalone output for Docker
   output: 'standalone',
 
@@ -19,12 +20,16 @@ const nextConfig: NextConfig = {
 
   // Optimize for production
   reactStrictMode: true,
-  // swcMinify is now default in Next.js 16, no need to specify
 
-  // Environment variables
-  env: {
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  // Image optimization
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.supabase.co',
+      },
+    ],
+    formats: ['image/avif', 'image/webp'],
   },
 
   async redirects() {
@@ -39,13 +44,22 @@ const nextConfig: NextConfig = {
         destination: '/',
         permanent: true,
       },
-      
       {
         source: '/options',
         destination: '/',
         permanent: true,
       },
     ];
+  },
+
+  // Webpack configuration for Prisma
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals.push({
+        '@prisma/client': 'commonjs @prisma/client',
+      });
+    }
+    return config;
   },
 
   // Headers for security
