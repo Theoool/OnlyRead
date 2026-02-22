@@ -58,10 +58,16 @@ export class ContentExtractionManager {
       }
     }
 
-    try {
-      // 直接使用 markdown.new 提取器（最快）
-      const extractor = this.findExtractor('markdown');
-      if (extractor?.supports(url)) {
+    let lastError: Error | undefined;
+
+    // 按优先级尝试所有支持的提取器
+    for (const extractor of this.extractors) {
+      if (!extractor.supports(url)) {
+        continue;
+      }
+
+      try {
+        console.log(`[ExtractionManager] Trying ${extractor.constructor.name} for ${url}`);
         const result = await extractor.extract(url, options);
         
         // 异步缓存（不阻塞返回）
@@ -69,21 +75,28 @@ export class ContentExtractionManager {
           this.cache.set(cacheKey, result, options.cacheTtl).catch(() => {});
         }
 
+        console.log(`[ExtractionManager] Successfully extracted with ${extractor.constructor.name}`);
         return result;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        console.warn(
+          `[ExtractionManager] ${extractor.constructor.name} failed:`,
+          lastError.message
+        );
+        // 继续尝试下一个提取器
       }
-
-      throw new Error('No suitable extractor found');
-    } catch (error) {
-      const extractionError: ExtractionError = {
-        code: 'EXTRACTION_FAILED',
-        message: error instanceof Error ? error.message : String(error),
-        url,
-        originalError: error instanceof Error ? error : undefined,
-      };
-
-      options.onError?.(extractionError);
-      throw error;
     }
+
+    // 所有提取器都失败
+    const extractionError: ExtractionError = {
+      code: 'EXTRACTION_FAILED',
+      message: lastError?.message || 'No suitable extractor found',
+      url,
+      originalError: lastError,
+    };
+
+    options.onError?.(extractionError);
+    throw new Error(extractionError.message);
   }
 
   /**

@@ -21,39 +21,45 @@ export class MarkdownNewExtractor implements IContentExtractor {
     const url = input;
     const markdownNewUrl = `https://markdown.new/${url}`;
 
-    const response = await fetch(markdownNewUrl, {
-      headers: {
-        'Accept': 'text/markdown,text/html',
-        'User-Agent': 'Mozilla/5.0 (compatible; ContentExtractor/3.0)',
-      },
-      signal: AbortSignal.timeout(10000), // 10秒超时
-    });
+    try {
+      const response = await fetch(markdownNewUrl, {
+        headers: {
+          'Accept': 'text/markdown,text/html',
+          'User-Agent': 'Mozilla/5.0 (compatible; ContentExtractor/3.0)',
+        },
+        signal: AbortSignal.timeout(8000), // 8秒超时（Vercel 环境更快失败）
+      });
 
-    if (!response.ok) {
-      throw new Error(`Markdown.new error: ${response.status} ${response.statusText}`);
+      if (!response.ok) {
+        throw new Error(`Markdown.new error: ${response.status} ${response.statusText}`);
+      }
+
+      let markdown = await response.text();
+
+      // 快速提取标题
+      const title = this.extractTitle(markdown, url);
+
+      // 轻量级清理
+      markdown = this.quickClean(markdown);
+
+      // 最小化后处理
+      if (options.removeRecommendations) {
+        markdown = this.removeRecommendations(markdown);
+      }
+
+      const metadata = this.quickMetadata(markdown);
+
+      return {
+        title,
+        content: markdown,
+        type: 'markdown',
+        metadata,
+      };
+    } catch (error) {
+      // 增强错误信息，便于调试
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      throw new Error(`MarkdownNewExtractor failed: ${errorMsg}`);
     }
-
-    let markdown = await response.text();
-
-    // 快速提取标题
-    const title = this.extractTitle(markdown, url);
-
-    // 轻量级清理
-    markdown = this.quickClean(markdown);
-
-    // 最小化后处理
-    if (options.removeRecommendations) {
-      markdown = this.removeRecommendations(markdown);
-    }
-
-    const metadata = this.quickMetadata(markdown);
-
-    return {
-      title,
-      content: markdown,
-      type: 'markdown',
-      metadata,
-    };
   }
 
   /**

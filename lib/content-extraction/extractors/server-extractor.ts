@@ -21,13 +21,17 @@ export class ServerExtractor implements IContentExtractor {
   }
 
   supports(input: string | Document): boolean {
-    // 服务端支持 HTML 字符串
-    return typeof input === 'string';
+    // 服务端支持 HTML 字符串和 URL
+    if (typeof input === 'string') {
+      // 支持 URL 和 HTML 字符串
+      return true;
+    }
+    return false;
   }
 
   async extract(input: string | Document, options: ExtractionOptions = {}): Promise<ExtractedContent> {
     if (typeof input !== 'string') {
-      throw new Error('ServerExtractor only supports HTML string input');
+      throw new Error('ServerExtractor only supports string input (URL or HTML)');
     }
 
     const {
@@ -42,8 +46,32 @@ export class ServerExtractor implements IContentExtractor {
       convertToMarkdown = true,
     } = options;
 
+    let html = input;
+    let sourceUrl = 'http://localhost';
+
+    // 如果是 URL，先获取 HTML
+    if (this.isValidUrl(input)) {
+      sourceUrl = input;
+      console.log(`[ServerExtractor] Fetching URL: ${sourceUrl}`);
+      
+      const response = await fetch(sourceUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; ContentExtractor/3.0)',
+          'Accept': 'text/html,application/xhtml+xml',
+        },
+        signal: AbortSignal.timeout(15000), // 15秒超时
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
+      }
+
+      html = await response.text();
+      console.log(`[ServerExtractor] Fetched ${html.length} bytes from ${sourceUrl}`);
+    }
+
     // 1. 创建 DOM
-    const dom = new JSDOM(input, { url: 'http://localhost' });
+    const dom = new JSDOM(html, { url: sourceUrl });
     const document = dom.window.document;
 
     // 2. 噪音过滤
@@ -174,6 +202,18 @@ export class ServerExtractor implements IContentExtractor {
       return titleMatch[1].trim().replace(/[\n\r\t]/g, ' ');
     }
     return 'Untitled';
+  }
+
+  /**
+   * 验证 URL
+   */
+  private isValidUrl(str: string): boolean {
+    try {
+      const url = new URL(str);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      return false;
+    }
   }
 }
 
