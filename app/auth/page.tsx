@@ -308,20 +308,8 @@ function AuthContent() {
           </div>
         </motion.div>
 
-        {/* Local Mode Notice */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="mt-6 text-center text-xs text-zinc-400 dark:text-zinc-600"
-        >
-          <button
-            onClick={() => router.push("/")}
-            className="hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors"
-          >
-            暂时不想登录？继续使用本地模式
-          </button>
-        </motion.div>
+        
+      
       </motion.div>
     </div>
   );

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { InteractiveQuiz } from '@/lib/core/learning/schemas';
-import { Card } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { CheckCircle2, XCircle, Info, ChevronRight, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
