@@ -49,7 +49,7 @@ export async function POST(req: Request) {
           } else if (!dryRun) {
             await prisma.article.create({
               data: {
-                id: article.id,
+               
                 userId: user.id,
                 title: article.title || null,
            

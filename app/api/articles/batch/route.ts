@@ -32,18 +32,13 @@ export async function POST(req: Request) {
       select: { id: true }
     });
     const existingIds = new Set(existingArticles.map(a => a.id));
-
     const newArticles = articles.filter((a: any) => !existingIds.has(a.id));
-
     let createdCount = 0;
-
     if (newArticles.length > 0) {
-      // 2. Use transaction to create articles with bodies (Vertical Partitioning)
       await prisma.$transaction(
         newArticles.map((a: any) =>
           prisma.article.create({
             data: {
-              id: a.id,
               userId: user.id,
               title: a.title || null,
               type: a.type || 'markdown',

@@ -41,6 +41,11 @@ export class ArticleCreator {
   static async createOne(data: ArticleData): Promise<CreateArticleResult> {
     const warnings: string[] = [];
 
+    validateUuid(data.userId, 'userId');
+    if (data.collectionId) {
+      validateUuid(data.collectionId, 'collectionId');
+    }
+
     // 处理内容
     const processed = ContentProcessor.process(data.content, {
       preserveImages: true,
@@ -159,6 +164,11 @@ export class ArticleCreator {
     // 预处理所有内容
     const processedBatch = batch.map((data, idx) => {
       try {
+        validateUuid(data.userId, 'userId');
+        if (data.collectionId) {
+          validateUuid(data.collectionId, 'collectionId');
+        }
+
         const processed = ContentProcessor.process(data.content, {
           preserveImages: true,
           preserveLinks: true,
@@ -257,3 +267,10 @@ export class ArticleCreator {
   }
 }
 
+function validateUuid(value: string, fieldName: string) {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!value || !uuidRegex.test(value)) {
+    console.error(`[ArticleCreator] Invalid UUID for ${fieldName}: "${value}"`);
+    throw new Error(`Invalid UUID for ${fieldName}: "${value}"`);
+  }
+}

@@ -25,10 +25,6 @@ export async function importUrl(url: string, collectionId?: string) {
     throw new Error('Invalid URL format');
   }
 
-  // 验证collectionId
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  const validCollectionId = collectionId && uuidRegex.test(collectionId) ? collectionId : null;
-
   try {
     // 1. 提取内容
     console.log('[Import] Extracting content from URL');
@@ -50,7 +46,6 @@ export async function importUrl(url: string, collectionId?: string) {
       url,
       domain,
       userId: user.id,
-      collectionId: validCollectionId,
       type: 'markdown',
     });
 
@@ -88,22 +83,13 @@ export async function importUrl(url: string, collectionId?: string) {
 }
 
 /**
- * 导入文件 - 保持简洁
+ * 导入文件
  */
 export async function importFile(filePath: string, originalName: string, fileType?: string) {
   const user = await requireUser();
-
-  console.log('[Import] Starting file import', { 
-    filePath, 
-    originalName, 
-    fileType,
-    userId: user.id,
-  });
-
   if (!filePath || !originalName) {
     throw new Error('Missing filePath or originalName');
   }
-
   try {
     const result = await importFileForUser({ 
       userId: user.id, 
@@ -111,13 +97,6 @@ export async function importFile(filePath: string, originalName: string, fileTyp
       originalName, 
       fileType 
     });
-
-    console.log('[Import] File import completed', {
-      collectionId: result.data.collection.id,
-      articlesCount: result.data.articlesCount,
-      totalChapters: result.data.totalChapters,
-    });
-
     return result;
   } catch (error) {
     console.error('[Import] File import failed', {

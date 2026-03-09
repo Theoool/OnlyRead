@@ -120,8 +120,7 @@ export class ArticlesRepository {
 
     const article = await prisma.article.create({
       data: {
-        // id: data.id || crypto.randomUUID(), // Let Prisma generate UUID or use provided
-        ...(data.id ? { id: data.id } : {}),
+      
         userId,
         title: data.title || null,
         type: data.type,

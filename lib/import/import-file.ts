@@ -191,6 +191,8 @@ export async function importFileForUser(params: ImportFileParams): Promise<Impor
  * 验证参数
  */
 function validateParams(filePath: string, originalName: string, userId: string): void {
+  validateUuid(userId, 'userId');
+
   if (!filePath || !originalName) {
     throw new Error('缺少必需参数: filePath 或 originalName');
   }
@@ -311,6 +313,19 @@ async function parseFile(buffer: Buffer, originalName: string): Promise<Processe
 }
 
 /**
+ * 验证 UUID 格式
+ */
+function validateUuid(value: string, fieldName: string) {
+  // 宽松一点的 UUID 正则，确保不包含明显非 UUID 字符
+  // 标准 UUID: 8-4-4-4-12 hex digits
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!value || !uuidRegex.test(value)) {
+    console.error(`[ImportFile] Invalid UUID for ${fieldName}: "${value}"`);
+    throw new Error(`Invalid UUID for ${fieldName}: "${value}"`);
+  }
+}
+
+/**
  * 使用事务创建 Collection 和 Articles（核心优化）
  */
 async function createCollectionAndArticlesInTransaction(
@@ -326,6 +341,9 @@ async function createCollectionAndArticlesInTransaction(
   estimatedReadTime: number;
 }> {
   console.log('[ImportFile] Starting transaction for collection and articles');
+
+  // 验证 userId
+  validateUuid(userId, 'userId');
 
   // 预计算统计数据（避免重复查询）
   const totalWords = parsedBook.chapters.reduce((sum: number, ch: any) => 
@@ -381,6 +399,8 @@ async function createCollectionAndArticlesInTransaction(
     console.log('[ImportFile] Collection created in transaction', { 
       collectionId: collection.id 
     });
+
+    validateUuid(collection.id, 'collectionId');
 
     // 2. 批量创建 Articles（使用 ContentProcessor）
     const articles: any[] = [];
