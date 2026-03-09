@@ -195,7 +195,6 @@ export function useImportManager({ userId, onSuccess, onLocalReady }: UseImportM
     try {
       const isMd = /^(#|\- |\* |```|\[.+\]\(.+\)|> )/m.test(text);
       const article: Article = {
-        id: `pasted-text-${Date.now()}`,
         title: truncate(text, 40),
         domain: "手动粘贴",
         content: text,
@@ -211,7 +210,6 @@ export function useImportManager({ userId, onSuccess, onLocalReady }: UseImportM
 
       onSuccess?.({
         type: 'text',
-        cloudId: article.id,
         mode: 'articles',
       });
 
@@ -245,12 +243,10 @@ export function useImportManager({ userId, onSuccess, onLocalReady }: UseImportM
     importFromUrl,
     importFromText,
     retry,
-    
     // 状态
     isLoading,
     error,
     jobId,
-    
     // 辅助方法
     reset: () => {
       setIsLoading(false);

@@ -15,7 +15,7 @@ export interface ConceptCardData {
 }
 
 export interface Article {
-  id: string
+  id?: string
   title: string
   domain?: string
   url?: string
@@ -122,6 +122,9 @@ export async function createArticle(article: Partial<Article>): Promise<Article>
     ...article,
   }
 
+  // Ensure no custom ID is sent to the server
+  delete dbData.id
+
   // Map lastReadSentence -> currentPosition
   if (article.lastReadSentence !== undefined) {
     dbData.currentPosition = article.lastReadSentence
@@ -175,11 +178,15 @@ export async function deleteArticle(id: string): Promise<void> {
  * Save or update article (upsert)
  */
 export async function saveArticle(article: Article): Promise<Article> {
+  // Try to find the article first
   const existing = await getArticle(article.id)
 
   if (existing) {
     return updateArticle(article.id, article)
   } else {
-    return createArticle(article)
+    // If not found, create a new one without the custom ID
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id, ...createData } = article
+    return createArticle(createData)
   }
 }
