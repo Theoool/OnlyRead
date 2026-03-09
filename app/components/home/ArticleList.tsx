@@ -51,7 +51,7 @@ export function ArticleList({ articles, isLoading, onLoadMore, hasMore }: Articl
     <div className="space-y-2 pb-20">
       <AnimatePresence mode="popLayout" initial={false}>
         {articles.map((article, i) => {
-          const articleConcepts = conceptsByArticle.get(article.id) || [];
+          const articleConcepts = conceptsByArticle.get(article.id!) || [];
           
           return (
             <motion.div
